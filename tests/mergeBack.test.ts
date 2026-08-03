@@ -1,0 +1,180 @@
+import { describe, it, expect } from 'vitest';
+import { parseHtmlToDoc, parseInlineHtml, docToHtml } from '../src/utils/htmlDoc';
+import { applyBlockEdits, buildBlockRegistry } from '../src/utils/mergeBack';
+import type { PageResult } from '../src/utils/pagination';
+
+/** Minimal TipTap doc with a paragraph + a heading. */
+const DOC = JSON.stringify({
+  type: 'doc',
+  content: [
+    { type: 'paragraph', content: [{ type: 'text', text: '第一段内容' }] },
+    {
+      type: 'heading',
+      attrs: { level: 1 },
+      content: [{ type: 'text', text: '小标题' }],
+    },
+    { type: 'paragraph', content: [{ type: 'text', text: '第三段' }] },
+  ],
+});
+
+describe('parseInlineHtml 内联富文本解析', () => {
+  it('解析 strong/em/mark 为 marks', () => {
+    const nodes = parseInlineHtml('<strong>加粗</strong><em>斜体</em><mark style="background-color:#DCEBFF">高亮</mark>');
+    expect(nodes[0]).toMatchObject({ type: 'text', text: '加粗', marks: [{ type: 'bold' }] });
+    expect(nodes[1]).toMatchObject({ type: 'text', text: '斜体', marks: [{ type: 'italic' }] });
+    // jsdom 会把内联颜色规范化为 rgb(...)，浏览器行为一致
+    expect(nodes[2]).toMatchObject({
+      type: 'text',
+      text: '高亮',
+      marks: [{ type: 'highlight', attrs: { color: 'rgb(220, 235, 255)' } }],
+    });
+  });
+
+  it('span 的 color/fontSize 映射为 textStyle mark', () => {
+    const nodes = parseInlineHtml('<span style="color:#FF2442;font-size:20px">红字</span>');
+    expect(nodes[0].marks).toEqual(
+      expect.arrayContaining([
+        {
+          type: 'textStyle',
+          attrs: { color: 'rgb(255, 36, 66)', fontSize: '20px' },
+        },
+      ])
+    );
+  });
+
+  it('<br> 映射为 hardBreak', () => {
+    const nodes = parseInlineHtml('第一行<br>第二行');
+    expect(nodes.map((n) => n.type)).toEqual(['text', 'hardBreak', 'text']);
+  });
+});
+
+describe('parseHtmlToDoc / docToHtml 块级往返', () => {
+  it('段落/标题/列表/引用/图片/分割线均可解析', () => {
+    const html =
+      '<p>正文</p><h1>标题</h1><ul><li>项目一</li><li>项目二</li></ul><blockquote>引用</blockquote><div><img src="data:image/png;base64,AAA" width="300" /></div><hr />';
+    const doc = parseHtmlToDoc(html);
+    const types = doc.content.map((n) => n.type);
+    expect(types).toEqual([
+      'paragraph',
+      'heading',
+      'bulletList',
+      'blockquote',
+      'image',
+      'horizontalRule',
+    ]);
+    const img = doc.content[4] as { attrs?: { width?: number } };
+    expect(img.attrs?.width).toBe(300);
+  });
+
+  it('docToHtml 序列化可被再次解析（往返稳定）', () => {
+    const doc = parseHtmlToDoc('<p>你好<strong>世界</strong></p><h2>副标题</h2>');
+    const html = docToHtml(doc);
+    const doc2 = parseHtmlToDoc(html);
+    expect(JSON.stringify(doc2)).toBe(JSON.stringify(doc));
+  });
+
+  it('序列化时转义 HTML 特殊字符', () => {
+    const doc = parseHtmlToDoc('<p>a &lt; b &amp; c</p>');
+    const html = docToHtml(doc);
+    expect(html).toContain('&lt;');
+  });
+});
+
+describe('buildBlockRegistry 与 blockParser 顺序一致', () => {
+  it('b0/b1/b2 对应文档顺序节点', () => {
+    const doc = JSON.parse(DOC) as Parameters<typeof buildBlockRegistry>[0];
+    const registry = buildBlockRegistry(doc);
+    expect(registry.get('b0')).toMatchObject({ kind: 'paragraph' });
+    expect(registry.get('b1')).toMatchObject({ kind: 'heading', level: 1 });
+    expect(registry.get('b2')).toMatchObject({ kind: 'paragraph' });
+  });
+});
+
+describe('applyBlockEdits 点击即改回写', () => {
+  it('编辑单段文字后回写 JSON 与 HTML', () => {
+    const pages: PageResult[] = [
+      {
+        pageIndex: 1,
+        blocks: [
+          {
+            id: 'b0',
+            type: 'text',
+            nodes: [{ text: '第一段内容', marks: [{ type: 'bold' }] }],
+          },
+        ],
+      },
+    ];
+    const result = applyBlockEdits(DOC, pages, [
+      { id: 'b0', html: '<strong>改成加粗的新内容</strong>' },
+    ]);
+    expect(result).not.toBeNull();
+    const doc = JSON.parse(result!.json) as { content: Array<{ content: unknown[] }> };
+    expect(doc.content[0].content).toEqual([
+      { type: 'text', text: '改成加粗的新内容', marks: [{ type: 'bold' }] },
+    ]);
+    expect(result!.html).toContain('<strong>改成加粗的新内容</strong>');
+  });
+
+  it('编辑被拆分的长段落时，未编辑部分保留原文', () => {
+    const splitDoc = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '第一页部分内容' }],
+        },
+      ],
+    });
+    // b0 被拆到两页：b0-p0 / b0-p1
+    const pages: PageResult[] = [
+      {
+        pageIndex: 1,
+        blocks: [
+          { id: 'b0-p0', type: 'text', nodes: [{ text: '第一页部分' }] },
+        ],
+      },
+      {
+        pageIndex: 2,
+        blocks: [
+          { id: 'b0-p1', type: 'text', nodes: [{ text: '内容' }] },
+        ],
+      },
+    ];
+    const result = applyBlockEdits(splitDoc, pages, [
+      { id: 'b0-p0', html: '修改后的第一页部分' },
+    ]);
+    expect(result).not.toBeNull();
+    const doc = JSON.parse(result!.json) as { content: Array<{ content: Array<{ text?: string }> }> };
+    const texts = doc.content[0].content.map((n) => n.text ?? '').join('');
+    expect(texts).toBe('修改后的第一页部分内容');
+  });
+
+  it('图片节点更新 width 属性', () => {
+    const imgDoc = JSON.stringify({
+      type: 'doc',
+      content: [
+        { type: 'image', attrs: { src: 'data:image/png;base64,AAA', width: 400 } },
+      ],
+    });
+    const pages: PageResult[] = [
+      {
+        pageIndex: 1,
+        blocks: [
+          { id: 'b0', type: 'image', src: 'data:image/png;base64,AAA' },
+        ],
+      },
+    ];
+    const result = applyBlockEdits(imgDoc, pages, [
+      { id: 'b0', html: '<div><img src="data:image/png;base64,AAA" width="250" /></div>' },
+    ]);
+    expect(result).not.toBeNull();
+    const doc = JSON.parse(result!.json) as {
+      content: Array<{ attrs?: { width?: number } }>;
+    };
+    expect(doc.content[0].attrs?.width).toBe(250);
+  });
+
+  it('空编辑列表返回 null', () => {
+    expect(applyBlockEdits(DOC, [], [])).toBeNull();
+  });
+});
