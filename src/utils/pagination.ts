@@ -8,12 +8,14 @@
  * the content into pages of a fixed pixel height:
  *
  *   1. Blocks that fit the remaining space of the current page are appended.
- *   2. A block that does NOT fit is moved to the next page as a whole
- *      (paragraph-level pagination).
- *   3. A single block TALLER than a full page is split at line level so it
+ *   2. A text-like block that does not fit is split into the remaining
+ *      lines, while keeping at least two lines on both sides.
+ *   3. A single block TALLER than a full page is also split at line level so it
  *      never overflows and never clips characters.
  *   4. Images are scaled proportionally to ≤ 85% of the content width
  *      (and additionally capped by the page height).
+ *   5. Manual breaks remain hard boundaries; headings and image captions
+ *      reserve enough space to avoid being stranded at a page edge.
  *
  * All estimates are deliberately conservative (slightly over-estimated) so
  * the real DOM rendering always fits inside the exported PNG with no
@@ -536,6 +538,53 @@ function splitTallBlock(block: PageBlock, ctx: BlockLayoutContext): PageBlock[] 
   return splitBlockByLines(block, maxLines, ctx);
 }
 
+/**
+ * Split an ordinary paragraph into the exact remaining page space.
+ * Both sides must keep at least two lines, implementing widow/orphan control.
+ */
+function splitBlockForRemaining(
+  block: PageBlock,
+  remainingHeight: number,
+  ctx: BlockLayoutContext,
+  tempPart: number
+): { first: PageBlock; rest: PageBlock } | null {
+  if (block.type !== 'text' && block.type !== 'list' && block.type !== 'quote') {
+    return null;
+  }
+  const fs = resolveCardFontSize(block.fontSize, ctx.opts.baseFontSize);
+  const margin = block.type === 'text'
+    ? TEXT_MARGIN
+    : block.type === 'list'
+      ? LIST_MARGIN
+      : QUOTE_PAD + QUOTE_MARGIN;
+  const lineWidth = block.type === 'quote'
+    ? Math.max(1, ctx.contentWidth - QUOTE_PAD)
+    : ctx.contentWidth;
+  const text = nodesToText(block.nodes);
+  const totalLines = estimateLineCount(text, lineWidth, fs, ctx.opts.letterSpacing);
+  let availableLines = Math.floor(
+    Math.max(0, remainingHeight - margin) / (fs * ctx.opts.lineHeight)
+  );
+  if (availableLines < 2 || totalLines <= availableLines) return null;
+  if (totalLines - availableLines === 1) availableLines -= 1;
+  if (availableLines < 2 || totalLines - availableLines < 2) return null;
+  const offset = findCutOffset(
+    text,
+    availableLines,
+    lineWidth,
+    fs,
+    ctx.opts.letterSpacing
+  );
+  if (offset <= 0 || offset >= text.length) return null;
+  const split = splitTextNodesAt(block.nodes, offset);
+  if (!split.first.length || !split.rest.length) return null;
+  const baseId = block.id.replace(/-p\d+$/, '');
+  return {
+    first: { ...block, id: `${baseId}-p${tempPart}`, nodes: split.first },
+    rest: { ...block, id: `${baseId}-p${tempPart + 1}`, nodes: split.rest },
+  };
+}
+
 /* ──────────────────────────────────────────────────────────────────────
  * Main pagination entry point
  * ────────────────────────────────────────────────────────────────────── */
@@ -572,64 +621,81 @@ export function paginateBlocks(
     !!block &&
     (block.type === 'text' || block.type === 'quote') &&
     nodesToText(block.nodes).trim().length <= 80;
+  const minimumKeepHeight = (block: PageBlock): number => {
+    if (block.type !== 'text' && block.type !== 'list' && block.type !== 'quote') {
+      return blockHeight(block);
+    }
+    const fs = resolveCardFontSize(block.fontSize, opts.baseFontSize);
+    const margin = block.type === 'text'
+      ? TEXT_MARGIN
+      : block.type === 'list'
+        ? LIST_MARGIN
+        : QUOTE_PAD + QUOTE_MARGIN;
+    return Math.min(blockHeight(block), Math.ceil(2 * fs * opts.lineHeight) + margin);
+  };
 
-  for (let index = 0; index < blocks.length; index += 1) {
-    const block = blocks[index];
+  const queue = blocks.map((block) => ({ ...block })) as PageBlock[];
+  let tempPart = 10000;
+  for (let index = 0; index < queue.length;) {
+    const block = queue[index];
     const baseId = block.id.replace(/-p\d+$/, '');
     if (opts.manualBreakBefore?.has(baseId) && current.length) flush();
 
     const h = estimateBlockHeight(block, ctx);
     if (h <= ctx.contentHeight) {
-      const next = blocks[index + 1];
-      const nextHeight = next ? blockHeight(next) : 0;
+      const next = queue[index + 1];
       const keepWithNext =
         block.type === 'heading' || (block.type === 'image' && isShortCaption(next));
       if (
         keepWithNext &&
+        next &&
         current.length &&
-        h + nextHeight <= ctx.contentHeight &&
-        used + h + nextHeight > ctx.contentHeight
+        used + h + minimumKeepHeight(next) > ctx.contentHeight
       ) {
         flush();
       }
-      // Normal block: move to next page as a whole when it does not fit.
-      if (used + h > ctx.contentHeight && current.length) flush();
+      if (used + h > ctx.contentHeight && current.length) {
+        const split = splitBlockForRemaining(
+          block,
+          ctx.contentHeight - used,
+          ctx,
+          tempPart
+        );
+        if (split) {
+          tempPart += 2;
+          current.push(split.first);
+          flush();
+          queue[index] = split.rest;
+          continue;
+        }
+        flush();
+        continue;
+      }
       current.push(block);
       used += h;
+      index += 1;
     } else {
       // Block taller than a whole page → line-level split.
       const parts = splitTallBlock(block, ctx);
-      for (const part of parts) {
-        const ph = estimateBlockHeight(part, ctx);
-        if (used + ph > ctx.contentHeight && current.length) flush();
-        current.push(part);
-        used += ph;
-      }
+      queue.splice(index, 1, ...parts);
     }
   }
   flush();
 
-  // Gentle page balancing: move one complete trailing block forward only
-  // when it materially reduces the fill difference between adjacent pages.
-  for (let i = 0; i < results.length - 1; i += 1) {
-    const left = results[i];
-    const right = results[i + 1];
-    const rightFirstId = right.blocks[0]?.id.replace(/-p\d+$/, '');
-    if (rightFirstId && opts.manualBreakBefore?.has(rightFirstId)) continue;
-    if (left.blocks.length < 2 || !right.blocks.length) continue;
-    const candidate = left.blocks[left.blocks.length - 1];
-    const beforeCandidate = left.blocks[left.blocks.length - 2];
-    if (candidate.type === 'heading' || beforeCandidate?.type === 'heading') continue;
-    const leftUsed = left.blocks.reduce((sum, item) => sum + blockHeight(item), 0);
-    const rightUsed = right.blocks.reduce((sum, item) => sum + blockHeight(item), 0);
-    const candidateHeight = blockHeight(candidate);
-    if (rightUsed + candidateHeight > contentHeight) continue;
-    const beforeDiff = Math.abs(leftUsed - rightUsed);
-    const afterDiff = Math.abs(leftUsed - candidateHeight - rightUsed - candidateHeight);
-    if (afterDiff + contentHeight * 0.08 < beforeDiff) {
-      left.blocks.pop();
-      right.blocks.unshift(candidate);
+  // Re-number every dynamically split source block in document order so the
+  // merge-back engine can rebuild it deterministically after card editing.
+  const occurrences = new Map<string, PageBlock[]>();
+  for (const page of results) {
+    for (const block of page.blocks) {
+      const base = block.id.replace(/-p\d+$/, '');
+      if (!occurrences.has(base)) occurrences.set(base, []);
+      occurrences.get(base)!.push(block);
     }
+  }
+  for (const [base, parts] of occurrences) {
+    parts.forEach((part, index) => {
+      part.id = parts.length > 1 ? `${base}-p${index}` : base;
+    });
   }
 
   const analyzed = analyzePaginationQuality(results, opts);

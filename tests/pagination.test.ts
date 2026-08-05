@@ -146,6 +146,82 @@ describe('paginateBlocks 段级分页', () => {
   });
 });
 
+describe('paginateBlocks 连续文档流回流', () => {
+  it('段落会拆行填满当前页余量，且两端至少保留两行', () => {
+    const pages = paginateBlocks([
+      textBlock('lead', chars(22)), // 2 行
+      textBlock('flow', chars(55)), // 5 行，当前页还能放 3 行
+    ], SMALL_OPTS);
+
+    expect(pages).toHaveLength(2);
+    expect(pages[0].blocks.map((block) => block.id)).toEqual(['lead', 'flow-p0']);
+    expect(pages[1].blocks.map((block) => block.id)).toEqual(['flow-p1']);
+    const firstText = nodesToText(
+      (pages[0].blocks[1] as Extract<PageBlock, { type: 'text' }>).nodes
+    );
+    const restText = nodesToText(
+      (pages[1].blocks[0] as Extract<PageBlock, { type: 'text' }>).nodes
+    );
+    expect(firstText).toHaveLength(33);
+    expect(restText).toHaveLength(22);
+    expect(firstText + restText).toBe(chars(55));
+  });
+
+  it('图片放大会按原文顺序向后推页，缩小后会把内容收回前页', () => {
+    const makeBlocks = (width: number): PageBlock[] => [
+      {
+        id: 'image',
+        type: 'image',
+        src: 'x',
+        naturalWidth: 100,
+        naturalHeight: 100,
+        width,
+      },
+      textBlock('body', chars(88)), // 8 行
+    ];
+    const enlarged = paginateBlocks(makeBlocks(130), SMALL_OPTS);
+    const reduced = paginateBlocks(makeBlocks(30), SMALL_OPTS);
+
+    expect(enlarged).toHaveLength(3);
+    expect(reduced).toHaveLength(2);
+    for (const pages of [enlarged, reduced]) {
+      const flat = pages.flatMap((page) => page.blocks);
+      expect(flat[0].id).toBe('image');
+      expect(flat.slice(1).every((block) => block.id.startsWith('body-p'))).toBe(true);
+      expect(
+        flat.slice(1).map((block) => nodesToText(
+          (block as Extract<PageBlock, { type: 'text' }>).nodes
+        )).join('')
+      ).toBe(chars(88));
+    }
+  });
+
+  it('手动分页是硬边界，后页内容不会回填到边界之前', () => {
+    const pages = paginateBlocks([
+      textBlock('before', chars(22)),
+      textBlock('after', chars(55)),
+    ], { ...SMALL_OPTS, manualBreakBefore: new Set(['after']) });
+
+    expect(pages).toHaveLength(2);
+    expect(pages[0].blocks.map((block) => block.id)).toEqual(['before']);
+    expect(pages[1].blocks.map((block) => block.id)).toEqual(['after']);
+  });
+
+  it('标题后即使是超长段落，也至少与两行正文留在同页', () => {
+    const pages = paginateBlocks([
+      textBlock('intro', chars(33)),
+      { id: 'heading', type: 'heading', level: 2, nodes: [{ text: '关键结论' }] },
+      textBlock('long-body', chars(110)),
+    ], SMALL_OPTS);
+    const headingPage = pages.find((page) =>
+      page.blocks.some((block) => block.id === 'heading')
+    );
+
+    expect(headingPage).toBeDefined();
+    expect(headingPage?.blocks.some((block) => block.id.startsWith('long-body-p'))).toBe(true);
+  });
+});
+
 /**
  * 行级拆分：单段超过整页高度 → 按行拆分，保证不溢出、不裁字。
  * 页高 100、padding 8 → 内容高 84；每行 28.8px，去掉 margin 18 → 每页最多 2 行。
