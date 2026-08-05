@@ -146,8 +146,12 @@ export const LongArticleEditor: React.FC<LongArticleEditorProps> = ({
 
           {/* Rich text editor with integrated toolbar */}
           <div>
-            {/* Toolbar above editor */}
-            {editor && <Toolbar editor={editor} />}
+            {/* 长文滚动时工具栏固定在编辑区顶部，随时可以调整选区。 */}
+            {editor && (
+              <div className="editor-toolbar-sticky">
+                <Toolbar editor={editor} />
+              </div>
+            )}
 
             {/* Editor area */}
             <div className="mt-4 tiptap-editor rounded-xhsCard border border-[#E8E8E8] bg-white min-h-[400px]">

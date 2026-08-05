@@ -210,3 +210,38 @@ export function applyBlockEdits(
 
   return { json: JSON.stringify(doc), html: docToHtml(doc) };
 }
+
+/**
+ * Insert a clipboard/file image as a real top-level TipTap block.
+ *
+ * Card DOM is only a paginated projection of the source document, so adding
+ * an <img> directly to contentEditable would be discarded by merge-back.
+ * This helper inserts into the source JSON first, then lets pagination render
+ * the new block on whichever page it belongs to.
+ */
+export function insertImageAfterBlock(
+  contentJson: string,
+  afterBlockId: string | undefined,
+  src: string
+): MergeBackResult | null {
+  if (!contentJson || !src) return null;
+
+  let doc: TipTapDoc;
+  try {
+    doc = JSON.parse(contentJson) as TipTapDoc;
+  } catch {
+    return null;
+  }
+  if (!doc || doc.type !== 'doc') return null;
+  if (!Array.isArray(doc.content)) doc.content = [];
+
+  const image: TipTapNode = { type: 'image', attrs: { src } };
+  const baseId = afterBlockId?.replace(/-p\d+$/, '');
+  const ref = baseId ? buildBlockRegistry(doc).get(baseId) : undefined;
+  const insertAt = ref?.path[0];
+
+  if (insertAt === undefined) doc.content.push(image);
+  else doc.content.splice(insertAt + 1, 0, image);
+
+  return { json: JSON.stringify(doc), html: docToHtml(doc) };
+}

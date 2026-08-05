@@ -6,6 +6,12 @@ import type {
   RichTextNode,
   TextMark,
 } from '../../utils/pagination';
+import {
+  resolveCardBodyFontSize,
+  resolveCardFontSize,
+  resolveCardPadding,
+  resolveCoverTitleFontSize,
+} from '../../utils/typography';
 
 interface ArticlePageProps {
   page: PageResult;
@@ -28,6 +34,8 @@ interface ArticlePageProps {
   onTitleInput?: (text: string) => void;
   /** Called when an image resize gesture ends (commit to store). */
   onImageResizeCommit?: () => void;
+  /** Insert a pasted image as a new block after the current source block. */
+  onPasteImage?: (src: string, afterBlockId?: string) => void;
   /** Mouse-down handler used by the parent to activate the card. */
   onCardMouseDown?: (e: React.MouseEvent, index: number) => void;
 }
@@ -54,10 +62,13 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
   onContentInput,
   onTitleInput,
   onImageResizeCommit,
+  onPasteImage,
   onCardMouseDown,
 }) => {
   const { width, height } = article.selectedSize;
-  const base = tpl.baseFontSize;
+  const base = resolveCardBodyFontSize(tpl.baseFontSize);
+  const cardPadding = resolveCardPadding(tpl.padding);
+  const coverTitleSize = resolveCoverTitleFontSize(tpl.baseFontSize, article.title);
   const isEditable = active && editableHtml !== undefined && !page.isCover;
 
   // ── Image selection + resize inside the active card ────────────────
@@ -438,6 +449,35 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
     [selectedImg, onImageResizeCommit]
   );
 
+  /** 排版后 Ctrl/Cmd+V 图片：读取剪贴板图片并作为独立块插入。 */
+  const handleContentPaste = useCallback(
+    (e: React.ClipboardEvent<HTMLDivElement>) => {
+      if (!active || !onPasteImage) return;
+      const files = Array.from(e.clipboardData.files ?? []);
+      const directFile = files.find((file) => file.type.startsWith('image/'));
+      const itemFile = Array.from(e.clipboardData.items ?? [])
+        .find((item) => item.type.startsWith('image/'))
+        ?.getAsFile();
+      const imageFile = directFile ?? itemFile;
+      if (!imageFile) return;
+      e.preventDefault();
+
+      const selectionNode = window.getSelection()?.anchorNode;
+      const selectionElement =
+        selectionNode?.nodeType === Node.ELEMENT_NODE
+          ? selectionNode as Element
+          : selectionNode?.parentElement;
+      const anchor = selectionElement?.closest('[data-block-id]') as HTMLElement | null;
+      const fallback = page.blocks[page.blocks.length - 1]?.id;
+      const afterBlockId = anchor?.dataset.blockId || fallback;
+
+      const reader = new FileReader();
+      reader.onload = () => onPasteImage(reader.result as string, afterBlockId);
+      reader.readAsDataURL(imageFile);
+    },
+    [active, onPasteImage, page.blocks]
+  );
+
   // ── Cover page ──────────────────────────────────────────────────────
   if (page.isCover) {
     if (article.coverImage) {
@@ -467,7 +507,7 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
               left: 0,
               right: 0,
               bottom: 0,
-              padding: tpl.padding,
+              padding: cardPadding,
               paddingTop: 56,
               background:
                 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.62) 100%)',
@@ -479,9 +519,10 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
               suppressContentEditableWarning
               onInput={(e) => onTitleInput?.((e.target as HTMLElement).innerText)}
               style={{
-                fontSize: Math.round(base * 1.7),
+                fontSize: coverTitleSize,
                 fontWeight: tpl.headingFontWeight,
-                lineHeight: 1.28,
+                lineHeight: 1.16,
+                letterSpacing: '-0.02em',
                 color: '#FFFFFF',
                 wordBreak: 'break-word',
                 margin: 0,
@@ -500,7 +541,7 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
     return (
       <div
         className={rootClassName}
-        style={cardStyle({ padding: tpl.padding })}
+        style={cardStyle({ padding: cardPadding })}
         onMouseDown={(e) => onCardMouseDown?.(e, page.pageIndex)}
       >
         <span className="card-page-badge">
@@ -530,9 +571,10 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
               suppressContentEditableWarning
               onInput={(e) => onTitleInput?.((e.target as HTMLElement).innerText)}
               style={{
-                fontSize: Math.round(base * 1.7),
+                fontSize: coverTitleSize,
                 fontWeight: tpl.headingFontWeight,
-                lineHeight: 1.28,
+                lineHeight: 1.16,
+                letterSpacing: '-0.02em',
                 color: tpl.textColor,
                 wordBreak: 'break-word',
                 margin: 0,
@@ -554,7 +596,7 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
           <p
             className="mt-auto"
             style={{
-              fontSize: 12,
+              fontSize: Math.max(20, Math.round(base * 0.58)),
               color: tpl.mutedColor,
               textAlign: tpl.headingAlign,
             }}
@@ -570,7 +612,7 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
   return (
     <div
       className={rootClassName}
-      style={cardStyle({ padding: tpl.padding })}
+      style={cardStyle({ padding: cardPadding })}
       onMouseDown={(e) => onCardMouseDown?.(e, page.pageIndex)}
     >
       <span className="card-page-badge">
@@ -591,6 +633,7 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
             contentEditable
             suppressContentEditableWarning
             onInput={(e) => onContentInput?.((e.target as HTMLElement).innerHTML)}
+            onPaste={handleContentPaste}
             onClick={handleContentClick}
             dangerouslySetInnerHTML={{ __html: editableHtml }}
           />
@@ -647,6 +690,7 @@ function renderRichTextNodes(
         const decorations: string[] = [];
         let href: string | undefined;
         let color: string | undefined;
+        let editorFontSize: string | undefined;
         for (const mark of node.marks ?? []) {
           applyMark(mark, style, decorations, tpl);
           if (mark.type === 'link') {
@@ -654,6 +698,9 @@ function renderRichTextNodes(
           }
           if (mark.type === 'textStyle' && mark.attrs?.color) {
             color = mark.attrs.color as string;
+          }
+          if (mark.type === 'textStyle' && mark.attrs?.fontSize) {
+            editorFontSize = String(mark.attrs.fontSize);
           }
         }
         if (color) style.color = color;
@@ -675,14 +722,16 @@ function renderRichTextNodes(
               style={{
                 color: color || '#FF2442',
                 textDecorationLine: decorations.join(' ') || 'underline',
+                ...style,
               }}
+              data-editor-font-size={editorFontSize}
             >
               {content}
             </a>
           );
         }
         return (
-          <span key={i} style={style}>
+          <span key={i} style={style} data-editor-font-size={editorFontSize}>
             {content}
           </span>
         );
@@ -717,7 +766,10 @@ function applyMark(
       style.padding = '0 2px';
       break;
     case 'textStyle':
-      if (mark.attrs?.fontSize) style.fontSize = mark.attrs.fontSize as string;
+      if (mark.attrs?.fontSize) {
+        const editorPx = parseFloat(String(mark.attrs.fontSize));
+        style.fontSize = `${resolveCardFontSize(editorPx, resolveCardBodyFontSize(tpl.baseFontSize))}px`;
+      }
       break;
     default:
       break;
@@ -843,7 +895,9 @@ function renderBlocks(blocks: PageBlock[], tpl: Template): React.ReactNode {
         break;
       case 'heading': {
         const scale = block.level === 1 ? 1.6 : 1.35;
-        const fs = Math.round((block.fontSize ?? tpl.baseFontSize) * scale);
+        const fs = Math.round(
+          resolveCardFontSize(block.fontSize, resolveCardBodyFontSize(tpl.baseFontSize)) * scale
+        );
         const Tag = block.level === 1 ? 'h1' : 'h2';
         out.push(
           <div

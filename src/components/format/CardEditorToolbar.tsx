@@ -5,6 +5,7 @@ interface CardEditorToolbarProps {
   /** Active card's contentEditable element (target of execCommand). */
   target: HTMLElement | null;
   onCommitted: () => void;
+  onInsertImage: (src: string) => void;
 }
 
 /**
@@ -19,6 +20,7 @@ interface CardEditorToolbarProps {
 export const CardEditorToolbar: React.FC<CardEditorToolbarProps> = ({
   target,
   onCommitted,
+  onInsertImage,
 }) => {
   const [showEmoji, setShowEmoji] = useState(false);
   const emojiBtnRef = useRef<HTMLButtonElement>(null);
@@ -48,13 +50,7 @@ export const CardEditorToolbar: React.FC<CardEditorToolbarProps> = ({
       if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
-        target?.focus();
-        document.execCommand(
-          'insertHTML',
-          false,
-          `<div><img src="${reader.result as string}" style="width:100%;border-radius:8px;" /></div>`
-        );
-        onCommitted();
+        onInsertImage(reader.result as string);
       };
       reader.readAsDataURL(file);
     };

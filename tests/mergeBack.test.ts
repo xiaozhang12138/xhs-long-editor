@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { parseHtmlToDoc, parseInlineHtml, docToHtml } from '../src/utils/htmlDoc';
-import { applyBlockEdits, buildBlockRegistry } from '../src/utils/mergeBack';
+import {
+  applyBlockEdits,
+  buildBlockRegistry,
+  insertImageAfterBlock,
+} from '../src/utils/mergeBack';
 import type { PageResult } from '../src/utils/pagination';
 
 /** Minimal TipTap doc with a paragraph + a heading. */
@@ -176,5 +180,41 @@ describe('applyBlockEdits 点击即改回写', () => {
 
   it('空编辑列表返回 null', () => {
     expect(applyBlockEdits(DOC, [], [])).toBeNull();
+  });
+});
+
+describe('insertImageAfterBlock 排版后插图', () => {
+  it('在光标所在块之后插入真实图片节点', () => {
+    const result = insertImageAfterBlock(
+      DOC,
+      'b0',
+      'data:image/png;base64,IMAGE'
+    );
+    expect(result).not.toBeNull();
+    const doc = JSON.parse(result!.json) as {
+      content: Array<{ type: string; attrs?: { src?: string } }>;
+    };
+    expect(doc.content.map((node) => node.type)).toEqual([
+      'paragraph',
+      'image',
+      'heading',
+      'paragraph',
+    ]);
+    expect(doc.content[1].attrs?.src).toBe('data:image/png;base64,IMAGE');
+    expect(result!.html).toContain('data:image/png;base64,IMAGE');
+  });
+
+  it('拆分页块 ID 仍插在原始段落之后', () => {
+    const result = insertImageAfterBlock(DOC, 'b0-p2', 'data:image/png;base64,SPLIT');
+    const doc = JSON.parse(result!.json) as { content: Array<{ type: string }> };
+    expect(doc.content[1].type).toBe('image');
+  });
+
+  it('空文档直接追加图片', () => {
+    const empty = JSON.stringify({ type: 'doc', content: [] });
+    const result = insertImageAfterBlock(empty, undefined, 'data:image/png;base64,ONLY');
+    const doc = JSON.parse(result!.json) as { content: Array<{ type: string }> };
+    expect(doc.content).toHaveLength(1);
+    expect(doc.content[0].type).toBe('image');
   });
 });

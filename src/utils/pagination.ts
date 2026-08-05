@@ -20,6 +20,11 @@
  * clipped characters.
  */
 import type { ArticleSize, Template } from '../types';
+import {
+  resolveCardBodyFontSize,
+  resolveCardFontSize,
+  resolveCardPadding,
+} from './typography';
 
 /* ──────────────────────────────────────────────────────────────────────
  * Types
@@ -271,8 +276,8 @@ export function buildPaginationOptions(
   return {
     width: size.width,
     height: size.height,
-    padding: tpl.padding,
-    baseFontSize: tpl.baseFontSize,
+    padding: resolveCardPadding(tpl.padding),
+    baseFontSize: resolveCardBodyFontSize(tpl.baseFontSize),
     lineHeight: tpl.lineHeight,
     letterSpacing: tpl.letterSpacing,
     headingFontWeight: tpl.headingFontWeight,
@@ -306,7 +311,7 @@ export function estimateBlockHeight(
   const cw = ctx.contentWidth;
   switch (block.type) {
     case 'text': {
-      const fs = block.fontSize ?? opts.baseFontSize;
+      const fs = resolveCardFontSize(block.fontSize, opts.baseFontSize);
       const lines = estimateLineCount(
         nodesToText(block.nodes),
         cw,
@@ -317,7 +322,7 @@ export function estimateBlockHeight(
     }
     case 'heading': {
       const scale = opts.headingScale?.[block.level] ?? 1.5;
-      const fs = Math.round((block.fontSize ?? opts.baseFontSize) * scale);
+      const fs = Math.round(resolveCardFontSize(block.fontSize, opts.baseFontSize) * scale);
       const lines = Math.max(
         1,
         estimateLineCount(nodesToText(block.nodes), cw, fs, opts.letterSpacing)
@@ -325,7 +330,7 @@ export function estimateBlockHeight(
       return Math.ceil(lines * fs * 1.35) + HEADING_EXTRA + HEADING_MARGIN;
     }
     case 'list': {
-      const fs = block.fontSize ?? opts.baseFontSize;
+      const fs = resolveCardFontSize(block.fontSize, opts.baseFontSize);
       const prefix =
         block.listKind === 'bullet'
           ? '• '
@@ -339,7 +344,7 @@ export function estimateBlockHeight(
       return Math.ceil(lines * fs * opts.lineHeight) + LIST_MARGIN;
     }
     case 'quote': {
-      const fs = block.fontSize ?? opts.baseFontSize;
+      const fs = resolveCardFontSize(block.fontSize, opts.baseFontSize);
       const lines = estimateLineCount(
         nodesToText(block.nodes),
         Math.max(1, cw - QUOTE_PAD),
@@ -446,7 +451,7 @@ function splitBlockByLines(
   maxLines: number,
   ctx: BlockLayoutContext
 ): PageBlock[] {
-  const fs = block.fontSize ?? ctx.opts.baseFontSize;
+  const fs = resolveCardFontSize(block.fontSize, ctx.opts.baseFontSize);
   const parts: PageBlock[] = [];
   let rest = block.nodes;
   let guard = 0;
@@ -492,7 +497,7 @@ function splitTallBlock(block: PageBlock, ctx: BlockLayoutContext): PageBlock[] 
     }
     return [block];
   }
-  const fs = block.fontSize ?? ctx.opts.baseFontSize;
+  const fs = resolveCardFontSize(block.fontSize, ctx.opts.baseFontSize);
   const lineHeightPx = fs * ctx.opts.lineHeight;
   const maxLines = Math.max(
     1,

@@ -10,8 +10,9 @@ import { templates } from '../../data/templates';
 import { useArticlePages } from '../../hooks/useArticlePages';
 import { ArticlePage } from './ArticlePage';
 import { CardEditorToolbar } from './CardEditorToolbar';
-import { applyBlockEdits } from '../../utils/mergeBack';
+import { applyBlockEdits, insertImageAfterBlock } from '../../utils/mergeBack';
 import type { BlockEdit } from '../../utils/mergeBack';
+import { normalizeCardEditHtml } from '../../utils/typography';
 import {
   downloadAllAsZip,
   downloadPng,
@@ -167,7 +168,7 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
       contentEl.querySelectorAll('[data-block-id]').forEach((el) => {
         edits.push({
           id: el.getAttribute('data-block-id') || '',
-          html: el.innerHTML,
+          html: normalizeCardEditHtml(el),
         });
       });
       if (!edits.length) return;
@@ -310,6 +311,65 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
     }
   }, [commitEdits]);
 
+  /** Resolve the source block nearest the caret, falling back to card end. */
+  const activeAnchorBlockId = useCallback((): string | undefined => {
+    const targetIndex = activeIndexRef.current;
+    if (targetIndex === null) return undefined;
+    const card = cardRefs.current[targetIndex];
+    const selectionNode = window.getSelection()?.anchorNode;
+    const selectionElement =
+      selectionNode?.nodeType === Node.ELEMENT_NODE
+        ? (selectionNode as Element)
+        : selectionNode?.parentElement;
+    const selectedBlock = selectionElement?.closest('[data-block-id]');
+    if (selectedBlock && card?.contains(selectedBlock)) {
+      return selectedBlock.getAttribute('data-block-id') || undefined;
+    }
+    const blocks = card?.querySelectorAll('[data-block-id]');
+    return blocks?.item(blocks.length - 1)?.getAttribute('data-block-id') || undefined;
+  }, []);
+
+  /** Insert image after the current block and immediately re-paginate. */
+  const handleInsertImage = useCallback(
+    (src: string, afterBlockId?: string) => {
+      if (editTimerRef.current !== null) {
+        window.clearTimeout(editTimerRef.current);
+        editTimerRef.current = null;
+      }
+
+      // Preserve any text edits made immediately before the paste/upload.
+      let sourceJson = article.content;
+      const targetIndex = activeIndexRef.current;
+      if (targetIndex !== null) {
+        const card = cardRefs.current[targetIndex];
+        const content = card?.querySelector('.xhs-card-content');
+        if (content) {
+          const edits: BlockEdit[] = [];
+          content.querySelectorAll('[data-block-id]').forEach((el) => {
+            edits.push({
+              id: el.getAttribute('data-block-id') || '',
+              html: normalizeCardEditHtml(el),
+            });
+          });
+          sourceJson = applyBlockEdits(sourceJson, pages, edits)?.json ?? sourceJson;
+        }
+      }
+
+      const result = insertImageAfterBlock(
+        sourceJson,
+        afterBlockId ?? activeAnchorBlockId(),
+        src
+      );
+      if (!result) return;
+      onContentChange(result.json, result.html);
+      setActiveIndex(null);
+      setActiveHtml('');
+      setActiveTitleHtml('');
+      onToast?.('图片已插入，页面已重新排版');
+    },
+    [article.content, pages, activeAnchorBlockId, onContentChange, onToast]
+  );
+
   /* ── downloads (P0-1: shared font-inlined pipeline + progress) ──── */
 
   const exportText = useMemo(() => articleFontText(article), [article]);
@@ -426,6 +486,7 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
           <div className="mt-2 flex items-center justify-between gap-4 bg-white rounded-xhsCard border border-[#F0DDE1] px-3 py-1.5">
             <CardEditorToolbar
               target={activeTarget}
+              onInsertImage={(src) => handleInsertImage(src)}
               onCommitted={() => {
                 if (activeIndexRef.current !== null) {
                   commitEdits(activeIndexRef.current);
@@ -493,6 +554,7 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
                     onContentInput={handleContentInput}
                     onTitleInput={handleTitleInput}
                     onImageResizeCommit={handleImageResizeCommit}
+                    onPasteImage={handleInsertImage}
                     onCardMouseDown={handleCardMouseDown}
                   />
                 </div>
