@@ -85,8 +85,10 @@ await sleep(500);
 const afterActivate = await evaluate(cdp, sessionId, `(() => {
   const slot = document.querySelectorAll('.card-display-slot')[1];
   const img = document.querySelector('.card-outer-container.active img');
+  const toolbar = document.querySelector('.card-edit-toolbar-inline');
+  const viewport = document.querySelector('.card-scroll-viewport');
   const r = img?.getBoundingClientRect();
-  return { slotWidth:slot?.getBoundingClientRect().width, overlay:!!document.querySelector('.card-edit-toolbar-overlay'), point:r ? {x:r.left+r.width/2,y:r.top+r.height/2}:null };
+  return { slotWidth:slot?.getBoundingClientRect().width, toolbarDocked:!!toolbar, overlapsContent:toolbar && viewport ? toolbar.getBoundingClientRect().bottom > viewport.getBoundingClientRect().top : null, point:r ? {x:r.left+r.width/2,y:r.top+r.height/2}:null };
 })()`);
 if (afterActivate.point) {
   await cdp.send('Input.dispatchMouseEvent', { type:'mousePressed', x:afterActivate.point.x, y:afterActivate.point.y, button:'left', clickCount:1 }, sessionId);

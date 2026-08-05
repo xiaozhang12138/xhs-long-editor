@@ -456,20 +456,46 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
       {/* Sticky toolbar */}
-      <div className="relative sticky top-0 z-20 bg-[#FAFAFA]/95 backdrop-blur px-6 py-3 border-b border-[#EDEDED] shrink-0">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h3 className="text-sm font-semibold text-[#333]">预览卡片流</h3>
-            <p className="text-[11px] text-[#999] mt-0.5 tabular-nums">
-              {ready
-                ? `共 ${pages.length} 张（封面 + ${Math.max(0, pages.length - 1)} 页正文）· ${cardW} × ${cardH}px`
-                : '正在排版…'}
-            </p>
-          </div>
+      <div className="sticky top-0 z-20 bg-[#FAFAFA]/95 backdrop-blur px-6 py-3 border-b border-[#EDEDED] shrink-0">
+        <div className="flex items-center justify-between gap-4 min-h-[38px]">
+          {activeIndex === null ? (
+            <div className="shrink-0">
+              <h3 className="text-sm font-semibold text-[#333]">预览卡片流</h3>
+              <p className="text-[11px] text-[#999] mt-0.5 tabular-nums">
+                {ready
+                  ? `共 ${pages.length} 张（封面 + ${Math.max(0, pages.length - 1)} 页正文）· ${cardW} × ${cardH}px`
+                  : '正在排版…'}
+              </p>
+            </div>
+          ) : (
+            <div className="card-edit-toolbar-inline min-w-0 flex-1 flex items-center gap-2">
+              <span className="card-edit-hint shrink-0">编辑中</span>
+              <div className="min-w-0 overflow-x-auto">
+                <CardEditorToolbar
+                  target={activeTarget}
+                  onInsertImage={(src) => handleInsertImage(src)}
+                  onCommitted={() => {
+                    if (activeIndexRef.current !== null) {
+                      commitEdits(activeIndexRef.current);
+                    }
+                  }}
+                />
+              </div>
+              <button
+                type="button"
+                className="text-[11px] text-[#777] hover:text-[#FF2442] cursor-pointer border-none bg-transparent transition-colors shrink-0"
+                onClick={() => {
+                  flushPendingEdit();
+                  setActiveIndex(null);
+                  setActiveHtml('');
+                  setActiveTitleHtml('');
+                }}
+              >
+                完成
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-3">
-            {activeIndex !== null && (
-              <span className="card-edit-hint">编辑中 · 点击空白处退出</span>
-            )}
             <Button
               variant="primary"
               size="sm"
@@ -480,33 +506,6 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
             </Button>
           </div>
         </div>
-
-        {/* Card edit toolbar (H1/H2/粗体/斜体/高亮/列表/引用/表情/图片) */}
-        {activeIndex !== null && (
-          <div className="card-edit-toolbar-overlay flex items-center justify-between gap-4 bg-white rounded-xhsCard border border-[#F0DDE1] px-3 py-1.5">
-            <CardEditorToolbar
-              target={activeTarget}
-              onInsertImage={(src) => handleInsertImage(src)}
-              onCommitted={() => {
-                if (activeIndexRef.current !== null) {
-                  commitEdits(activeIndexRef.current);
-                }
-              }}
-            />
-            <button
-              type="button"
-              className="text-[11px] text-[#999] hover:text-[#FF2442] cursor-pointer border-none bg-transparent transition-colors shrink-0"
-              onClick={() => {
-                flushPendingEdit();
-                setActiveIndex(null);
-                setActiveHtml('');
-                setActiveTitleHtml('');
-              }}
-            >
-              退出编辑
-            </button>
-          </div>
-        )}
       </div>
 
       {error && (

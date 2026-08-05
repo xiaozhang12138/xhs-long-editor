@@ -853,15 +853,14 @@ html {
   background: #B0B0B0;
 }
 
-/* 编辑工具条浮在预览上方，不参与高度计算，激活卡片时预览不会突然缩小。 */
-.card-edit-toolbar-overlay {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 24px;
-  right: 24px;
-  z-index: 70;
-  box-shadow: 0 12px 34px rgba(24, 24, 27, 0.14);
-  backdrop-filter: blur(14px);
+/* 编辑工具条复用原顶部栏高度：不覆盖内容，也不触发卡片重新缩放。 */
+.card-edit-toolbar-inline {
+  height: 38px;
+  overflow: hidden;
+}
+.card-edit-toolbar-inline .card-toolbar {
+  flex-wrap: nowrap;
+  width: max-content;
 }
 
 /* 基于标题/正文关键词生成的零成本封面视觉，可直接随卡片导出。 */
