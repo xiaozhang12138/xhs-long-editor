@@ -47,7 +47,7 @@ export const EditorFooter: React.FC<EditorFooterProps> = ({
         )}
         {onDraftLeave && (
           <Button variant="secondary" onClick={onDraftLeave}>
-            暂存离开
+            保存草稿
           </Button>
         )}
         {primaryAction && (

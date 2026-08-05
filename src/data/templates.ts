@@ -577,6 +577,8 @@ export const sizePresets: SizePreset[] = [
 /** Custom width bounds (px) enforced by the size selector */
 export const CUSTOM_WIDTH_MIN = 240;
 export const CUSTOM_WIDTH_MAX = 1200;
+export const CUSTOM_HEIGHT_MIN = 200;
+export const CUSTOM_HEIGHT_MAX = 2000;
 
 /** Default article size — 手机长图 900×1500 (matches the original). */
 export const defaultArticleSize: ArticleSize = {

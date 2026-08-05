@@ -156,6 +156,27 @@ describe('useArticleStore 自动保存与状态流转', () => {
     expect(result.current.article.tags).toEqual([]);
   });
 
+  it('修改宽度后进入自定义尺寸，并保持当前宽高比', () => {
+    const { result } = renderHook(() => useArticleStore());
+    act(() => result.current.selectSizePreset('square'));
+    act(() => result.current.setCustomWidth(600));
+    expect(result.current.article.selectedSize).toEqual({
+      presetId: 'custom',
+      width: 600,
+      height: 600,
+    });
+  });
+
+  it('修改高度后进入自定义尺寸，不再错误标记为预设比例', () => {
+    const { result } = renderHook(() => useArticleStore());
+    act(() => result.current.setCustomHeight(1200));
+    expect(result.current.article.selectedSize).toEqual({
+      presetId: 'custom',
+      width: 900,
+      height: 1200,
+    });
+  });
+
   it('草稿可从 localStorage 恢复', () => {
     localStorage.setItem(
       STORAGE_KEY,

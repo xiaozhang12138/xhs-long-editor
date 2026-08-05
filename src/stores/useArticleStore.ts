@@ -1,6 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { AppStage, ArticleData, ArticleSize } from '../types';
-import { defaultArticleSize, resolveSize, sizePresets } from '../data/templates';
+import {
+  CUSTOM_HEIGHT_MAX,
+  CUSTOM_HEIGHT_MIN,
+  CUSTOM_WIDTH_MAX,
+  CUSTOM_WIDTH_MIN,
+  defaultArticleSize,
+  resolveSize,
+  sizePresets,
+} from '../data/templates';
 import {
   createDraftRecord,
   draftTitleOf,
@@ -219,10 +227,24 @@ export function useArticleStore() {
 
   /** Set a custom width (clamped 240–1200), height follows current aspect */
   const setCustomWidth = useCallback((width: number) => {
-    setArticle((prev) => ({
-      ...prev,
-      selectedSize: resolveSize(prev.selectedSize.presetId, width),
-    }));
+    setArticle((prev) => {
+      const safeWidth = Math.min(
+        CUSTOM_WIDTH_MAX,
+        Math.max(CUSTOM_WIDTH_MIN, Math.round(width) || CUSTOM_WIDTH_MIN)
+      );
+      const currentRatio =
+        prev.selectedSize.width > 0
+          ? prev.selectedSize.height / prev.selectedSize.width
+          : defaultArticleSize.height / defaultArticleSize.width;
+      const height = Math.min(
+        CUSTOM_HEIGHT_MAX,
+        Math.max(CUSTOM_HEIGHT_MIN, Math.round(safeWidth * currentRatio))
+      );
+      return {
+        ...prev,
+        selectedSize: { presetId: 'custom', width: safeWidth, height },
+      };
+    });
   }, []);
 
   /** Set an explicit height, switching the size to custom */
@@ -231,7 +253,11 @@ export function useArticleStore() {
       ...prev,
       selectedSize: {
         ...prev.selectedSize,
-        height: Math.min(2000, Math.max(200, Math.round(height) || 200)),
+        presetId: 'custom',
+        height: Math.min(
+          CUSTOM_HEIGHT_MAX,
+          Math.max(CUSTOM_HEIGHT_MIN, Math.round(height) || CUSTOM_HEIGHT_MIN)
+        ),
       },
     }));
   }, []);

@@ -10,8 +10,6 @@ interface PublishPageProps {
   onDescriptionChange: (desc: string) => void;
   onAddTag: (tag: string) => void;
   onRemoveTag: (tag: string) => void;
-  onPublish: () => void;
-  onDraftLeave: () => void;
   /** Navigate back to Stage 2 (format page). Article state is preserved. */
   onBack: () => void;
 }
@@ -43,8 +41,6 @@ export const PublishPage: React.FC<PublishPageProps> = ({
   onDescriptionChange,
   onAddTag,
   onRemoveTag,
-  onPublish,
-  onDraftLeave,
   onBack,
 }) => {
   const [showSmartTitle, setShowSmartTitle] = useState(false);

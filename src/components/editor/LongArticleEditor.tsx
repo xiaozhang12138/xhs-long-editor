@@ -22,6 +22,21 @@ interface LongArticleEditorProps {
 }
 
 /**
+ * 将 store 中保存的 TipTap JSON 字符串还原成编辑器内容。
+ * 空字符串代表真正的空文档，切换到新草稿时必须同步清空编辑器。
+ */
+function parseStoredContent(content: string): object | string {
+  if (!content) return '';
+  try {
+    const parsed = JSON.parse(content) as unknown;
+    return parsed && typeof parsed === 'object' ? parsed as object : '';
+  } catch {
+    // 兼容早期可能直接保存 HTML 的草稿。
+    return content;
+  }
+}
+
+/**
  * Ctrl+V 粘贴插图：提取 clipboardData.files 中 image/* → base64 → 插入。
  */
 function handlePasteImage(
@@ -82,7 +97,7 @@ export const LongArticleEditor: React.FC<LongArticleEditorProps> = ({
         placeholder: '',
       }),
     ],
-    content: content || '',
+    content: parseStoredContent(content),
     onUpdate: ({ editor: e }) => {
       onContentChange(JSON.stringify(e.getJSON()), e.getHTML());
     },
@@ -103,18 +118,22 @@ export const LongArticleEditor: React.FC<LongArticleEditorProps> = ({
 
   // Sync external content
   useEffect(() => {
-    if (editor && content) {
-      try {
-        const parsed = typeof content === 'string' ? JSON.parse(content) : content;
-        if (parsed && typeof parsed === 'object') {
-          const currentJson = JSON.stringify(editor.getJSON());
-          if (currentJson !== JSON.stringify(parsed)) {
-            editor.commands.setContent(parsed);
-          }
-        }
-      } catch {
-        // ignore
+    if (!editor) return;
+    const parsed = parseStoredContent(content);
+    if (parsed === '') {
+      // 关键回归：新建/切换到空草稿时，不能残留上一份正文。
+      if (!editor.isEmpty) editor.commands.setContent('', false);
+      return;
+    }
+    if (typeof parsed === 'object') {
+      const currentJson = JSON.stringify(editor.getJSON());
+      if (currentJson !== JSON.stringify(parsed)) {
+        editor.commands.setContent(parsed, false);
       }
+      return;
+    }
+    if (editor.getHTML() !== parsed) {
+      editor.commands.setContent(parsed, false);
     }
   }, [content, editor]);
 

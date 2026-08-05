@@ -2,6 +2,8 @@ import React from 'react';
 import type { ArticleSize } from '../../types';
 import {
   sizePresets,
+  CUSTOM_HEIGHT_MIN,
+  CUSTOM_HEIGHT_MAX,
   CUSTOM_WIDTH_MIN,
   CUSTOM_WIDTH_MAX,
 } from '../../data/templates';
@@ -105,13 +107,15 @@ export const SizeSelector: React.FC<SizeSelectorProps> = ({
             <label htmlFor="size-height" className="text-xs text-[#666]">
               高度
             </label>
-            <span className="text-[11px] text-[#BBB]">按比例自动计算</span>
+            <span className="text-[11px] text-[#BBB]">
+              {CUSTOM_HEIGHT_MIN}–{CUSTOM_HEIGHT_MAX}px
+            </span>
           </div>
           <input
             id="size-height"
             type="number"
-            min={200}
-            max={2000}
+            min={CUSTOM_HEIGHT_MIN}
+            max={CUSTOM_HEIGHT_MAX}
             value={size.height}
             onChange={(e) => onHeightChange(Number(e.target.value))}
             className="w-full text-xs border border-[#E8E8E8] rounded-xhs px-3 py-1.5 outline-none focus:border-[#FF2442] transition-colors tabular-nums"

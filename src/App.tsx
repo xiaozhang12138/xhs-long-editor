@@ -12,39 +12,6 @@ import {
   formatArticlePlainText,
 } from './utils/clipboard';
 
-/**
- * Confirm dialog component for "暂存离开" action.
- */
-const ConfirmDialog: React.FC<{
-  message: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}> = ({ message, onConfirm, onCancel }) => {
-  return (
-    <div className="dialog-overlay">
-      <div className="dialog-box">
-        <p className="text-[15px] text-[#333] mb-6">{message}</p>
-        <div className="flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-5 py-2 text-sm rounded-xhs cursor-pointer border border-[#E8E8E8] bg-white text-[#666] hover:bg-[#F5F5F5] transition-colors"
-          >
-            取消
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="px-5 py-2 text-sm rounded-xhs cursor-pointer border-none bg-[#FF2442] text-white hover:bg-[#E01F3C] transition-colors"
-          >
-            确定
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 /** Toast notification */
 const Toast: React.FC<{ message: string; onClose: () => void }> = ({ message, onClose }) => {
   return (
@@ -68,8 +35,6 @@ const Toast: React.FC<{ message: string; onClose: () => void }> = ({ message, on
  */
 function App() {
   const store = useArticleStore();
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showDrafts, setShowDrafts] = useState(false);
 
@@ -79,43 +44,18 @@ function App() {
     setTimeout(() => setToastMessage(null), 3000);
   }, []);
 
-  /** Request confirmation before destructive action */
-  const requestConfirm = useCallback((action: () => void) => {
-    setConfirmAction(() => action);
-    setShowConfirmDialog(true);
-  }, []);
-
-  /** Handle confirm dialog response */
-  const handleConfirm = useCallback(() => {
-    setShowConfirmDialog(false);
-    if (confirmAction) {
-      confirmAction();
-      setConfirmAction(null);
-    }
-  }, [confirmAction]);
-
-  /** Handle cancel dialog */
-  const handleCancel = useCallback(() => {
-    setShowConfirmDialog(false);
-    setConfirmAction(null);
-  }, []);
-
-  /** Handle "暂存离开" — show confirmation dialog */
+  /** 草稿会实时自动保存；按钮仅给用户明确的保存反馈。 */
   const handleDraftLeave = useCallback(() => {
-    requestConfirm(() => {
-      // In real app this would navigate away
-      showToast('已暂存草稿');
-    });
-  }, [requestConfirm, showToast]);
+    showToast('草稿已保存到当前浏览器');
+  }, [showToast]);
 
-  /** Handle publish */
+  /**
+   * 本工具没有接入小红书发布接口，不能伪装成已经发布，也不能删除草稿。
+   * 完成页只提示用户下载图片后手动发布。
+   */
   const handlePublish = useCallback(() => {
-    requestConfirm(() => {
-      showToast('🎉 发布成功！笔记已发布到小红书');
-      // Clear draft after successful publish
-      setTimeout(() => store.clearDraft(), 1500);
-    });
-  }, [requestConfirm, showToast, store]);
+    showToast('内容已保存，请下载图片后手动发布到小红书');
+  }, [showToast]);
 
   /** Copy the whole article (title + body plain text) to the clipboard. */
   const handleCopyFullText = useCallback(async () => {
@@ -270,8 +210,6 @@ function App() {
               onDescriptionChange={store.updateDescription}
               onAddTag={store.addTag}
               onRemoveTag={store.removeTag}
-              onPublish={handlePublish}
-              onDraftLeave={handleDraftLeave}
               onBack={goBackToFormat}
             />
 
@@ -284,14 +222,14 @@ function App() {
                   onClick={handleDraftLeave}
                   className="px-5 py-2 text-sm rounded-xhs cursor-pointer border border-[#E8E8E8] bg-white text-[#666] hover:bg-[#FAFAFA] transition-colors"
                 >
-                  暂存离开
+                  保存草稿
                 </button>
                 <button
                   type="button"
                   onClick={handlePublish}
                   className="px-8 py-2 text-sm rounded-xhs cursor-pointer border-none bg-[#FF2442] text-white hover:bg-[#E01F3C] transition-colors font-medium"
                 >
-                  发布
+                  完成
                 </button>
               </div>
             </div>
@@ -308,15 +246,6 @@ function App() {
           onCreate={handleCreateDraft}
           onSwitch={handleSwitchDraft}
           onDelete={handleDeleteDraft}
-        />
-      )}
-
-      {/* Confirm Dialog */}
-      {showConfirmDialog && (
-        <ConfirmDialog
-          message="确定离开？未保存的内容将会丢失"
-          onConfirm={handleConfirm}
-          onCancel={handleCancel}
         />
       )}
 
