@@ -10,7 +10,6 @@ import type { EditorView } from '@tiptap/pm/view';
 import type { Slice } from '@tiptap/pm/model';
 import { FontSize } from './extensions/FontSize';
 import { ResizableImage } from './extensions/ResizableImage';
-import { ImageResizeHandler } from './ImageResizeHandler';
 
 interface RichTextEditorProps {
   content: string;
@@ -68,7 +67,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         },
       }),
       ResizableImage.configure({
-        inline: true,
+        inline: false,
         allowBase64: true,
       }),
       Placeholder.configure({
@@ -107,7 +106,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   return (
     <div className="tiptap-editor rounded-xhsCard border border-[#E8E8E8] bg-white min-h-[400px]">
       <EditorContent editor={editor} />
-      <ImageResizeHandler editor={editor} />
     </div>
   );
 };

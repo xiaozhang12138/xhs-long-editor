@@ -456,7 +456,7 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
       {/* Sticky toolbar */}
-      <div className="sticky top-0 z-10 bg-[#FAFAFA]/95 backdrop-blur px-6 py-3 border-b border-[#EDEDED] shrink-0">
+      <div className="relative sticky top-0 z-20 bg-[#FAFAFA]/95 backdrop-blur px-6 py-3 border-b border-[#EDEDED] shrink-0">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h3 className="text-sm font-semibold text-[#333]">预览卡片流</h3>
@@ -483,7 +483,7 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
 
         {/* Card edit toolbar (H1/H2/粗体/斜体/高亮/列表/引用/表情/图片) */}
         {activeIndex !== null && (
-          <div className="mt-2 flex items-center justify-between gap-4 bg-white rounded-xhsCard border border-[#F0DDE1] px-3 py-1.5">
+          <div className="card-edit-toolbar-overlay flex items-center justify-between gap-4 bg-white rounded-xhsCard border border-[#F0DDE1] px-3 py-1.5">
             <CardEditorToolbar
               target={activeTarget}
               onInsertImage={(src) => handleInsertImage(src)}

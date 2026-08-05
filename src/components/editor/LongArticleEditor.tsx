@@ -10,7 +10,6 @@ import type { EditorView } from '@tiptap/pm/view';
 import type { Slice } from '@tiptap/pm/model';
 import { FontSize } from './extensions/FontSize';
 import { ResizableImage } from './extensions/ResizableImage';
-import { ImageResizeHandler } from './ImageResizeHandler';
 import { TitleInput } from './TitleInput';
 import { Toolbar } from './Toolbar';
 
@@ -90,7 +89,9 @@ export const LongArticleEditor: React.FC<LongArticleEditorProps> = ({
         },
       }),
       ResizableImage.configure({
-        inline: true,
+        // Images must be document blocks so pagination can preserve their
+        // position and height instead of silently dropping inline images.
+        inline: false,
         allowBase64: true,
       }),
       Placeholder.configure({
@@ -156,7 +157,6 @@ export const LongArticleEditor: React.FC<LongArticleEditorProps> = ({
             {/* Editor area */}
             <div className="mt-4 tiptap-editor rounded-xhsCard border border-[#E8E8E8] bg-white min-h-[400px]">
               <EditorContent editor={editor} />
-              <ImageResizeHandler editor={editor} />
             </div>
           </div>
         </div>

@@ -255,6 +255,24 @@ describe('paginateBlocks 图片节点', () => {
     expect(img.displayHeight).toBe(Math.floor(184 * 0.85));
     expect(h).toBe(img.displayHeight + 20);
   });
+
+  it('显式设置宽度可放大小图，并参与后续分页高度计算', () => {
+    const image: PageBlock = {
+      id: 'img4',
+      type: 'image',
+      src: 'data:image/png;base64,xxx',
+      naturalWidth: 80,
+      naturalHeight: 40,
+      width: 160,
+    };
+    const contentWidth = SMALL_OPTS.width - SMALL_OPTS.padding * 2;
+    const contentHeight = SMALL_OPTS.height - SMALL_OPTS.padding * 2;
+    const h = estimateBlockHeight(image, { contentWidth, contentHeight, opts: SMALL_OPTS });
+    const img = image as Extract<PageBlock, { type: 'image' }>;
+    expect(img.displayWidth).toBe(160);
+    expect(img.displayHeight).toBe(80);
+    expect(h).toBe(100);
+  });
 });
 
 /** 混合内容：标题 + 正文 + 图片 + 列表顺序保持。 */

@@ -368,7 +368,12 @@ export function estimateBlockHeight(
       // Cap by the content height minus the image margin so the image plus
       // its margin always fits a fresh page.
       const maxH = Math.max(1, ctx.contentHeight - IMAGE_MARGIN);
-      const scale = Math.min(1, capW / w, maxH / h);
+      // A user-set width is an explicit design decision and may enlarge a
+      // small source image. Automatic layout still avoids upscaling by
+      // default to protect image quality.
+      const scale = block.width && block.width > 0
+        ? Math.min(capW / w, maxH / h)
+        : Math.min(1, capW / w, maxH / h);
       const dw = Math.max(1, Math.round(w * scale));
       const dh = Math.max(1, Math.round(h * scale));
       // Persist the resolved display size so the renderer stays in sync.

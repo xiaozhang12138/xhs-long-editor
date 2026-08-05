@@ -12,6 +12,7 @@ import {
   resolveCardPadding,
   resolveCoverTitleFontSize,
 } from '../../utils/typography';
+import { buildCoverVisualData } from '../../utils/coverVisual';
 
 interface ArticlePageProps {
   page: PageResult;
@@ -69,6 +70,7 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
   const base = resolveCardBodyFontSize(tpl.baseFontSize);
   const cardPadding = resolveCardPadding(tpl.padding);
   const coverTitleSize = resolveCoverTitleFontSize(tpl.baseFontSize, article.title);
+  const coverVisual = buildCoverVisualData(article.title, article.contentHtml);
   const isEditable = active && editableHtml !== undefined && !page.isCover;
 
   // ── Image selection + resize inside the active card ────────────────
@@ -424,18 +426,30 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
       e.preventDefault();
       e.stopPropagation();
       if (!selectedImg) return;
-      const img = contentRef.current?.querySelector(
+      const content = contentRef.current;
+      const img = content?.querySelector(
         `img[src="${selectedImg.src}"]`
       ) as HTMLImageElement | null;
       if (!img) return;
       dragRef.current = { startX: e.clientX, startW: img.offsetWidth };
+      const card = content?.closest('.card-outer-container') as HTMLElement | null;
+      const cardRect = card?.getBoundingClientRect();
+      const visualScale = card && cardRect
+        ? card.offsetWidth / Math.max(1, cardRect.width)
+        : 1;
       const onMove = (ev: PointerEvent) => {
         if (!dragRef.current || !contentRef.current) return;
-        const dx = ev.clientX - dragRef.current.startX;
+        const dx = (ev.clientX - dragRef.current.startX) * visualScale;
         const maxW = contentRef.current.offsetWidth;
-        const newW = Math.max(60, Math.min(maxW, dragRef.current.startW + dx));
+        const newW = Math.max(80, Math.min(maxW, dragRef.current.startW + dx));
         img.style.width = `${Math.round(newW)}px`;
         img.style.height = 'auto';
+        const aspect = img.naturalHeight / Math.max(1, img.naturalWidth);
+        setSelectedImg((current) => current ? {
+          ...current,
+          w: Math.round(newW),
+          h: Math.round(newW * aspect),
+        } : current);
       };
       const onUp = () => {
         dragRef.current = null;
@@ -549,7 +563,7 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
         </span>
         <div className="xhs-card-inner" style={{ padding: 0 }}>
           <div
-            className="w-full shrink-0 overflow-hidden flex items-center justify-center"
+            className="w-full shrink-0 overflow-hidden"
             style={{
               height: Math.round(height * 0.42),
               borderRadius: Math.max(4, tpl.cardRadius - 4),
@@ -558,9 +572,7 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
               marginBottom: 20,
             }}
           >
-            <span className="text-xs" style={{ color: tpl.mutedColor }}>
-              封面图
-            </span>
+            <KeywordCoverVisual data={coverVisual} template={tpl} />
           </div>
 
           <div style={{ textAlign: tpl.headingAlign }}>
@@ -672,6 +684,39 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
     </div>
   );
 };
+
+/** Zero-cost, deterministic keyword artwork used by the automatic cover. */
+function KeywordCoverVisual({
+  data,
+  template,
+}: {
+  data: ReturnType<typeof buildCoverVisualData>;
+  template: Template;
+}): React.ReactElement {
+  const angle = 12 + (data.seed % 38);
+  const second = data.keywords[1] ?? data.keywords[0];
+  return (
+    <div
+      className={`keyword-cover-visual keyword-cover-visual--${data.variant}`}
+      style={{
+        '--visual-accent': template.accentColor,
+        '--visual-ink': template.textColor,
+        '--visual-muted': template.mutedColor,
+        '--visual-angle': `${angle}deg`,
+      } as React.CSSProperties}
+    >
+      <div className="keyword-cover-grid" />
+      <div className="keyword-cover-orbit keyword-cover-orbit--a" />
+      <div className="keyword-cover-orbit keyword-cover-orbit--b" />
+      <span className="keyword-cover-index">KEYWORD VISUAL / {String(data.variant + 1).padStart(2, '0')}</span>
+      <strong className="keyword-cover-word">{data.keywords[0]}</strong>
+      <span className="keyword-cover-word keyword-cover-word--ghost">{second}</span>
+      <div className="keyword-cover-tags">
+        {data.keywords.map((keyword) => <span key={keyword}>#{keyword}</span>)}
+      </div>
+    </div>
+  );
+}
 
 /* ──────────────────────────────────────────────────────────────────────
  * Block renderers

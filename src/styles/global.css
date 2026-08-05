@@ -133,7 +133,6 @@ body {
   outline: 2px solid var(--xhs-red);
   outline-offset: 2px;
 }
-
 .tiptap-editor .ProseMirror hr {
   border: none;
   border-top: 1px solid var(--xhs-divider);
@@ -854,6 +853,95 @@ html {
   background: #B0B0B0;
 }
 
+/* 编辑工具条浮在预览上方，不参与高度计算，激活卡片时预览不会突然缩小。 */
+.card-edit-toolbar-overlay {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 24px;
+  right: 24px;
+  z-index: 70;
+  box-shadow: 0 12px 34px rgba(24, 24, 27, 0.14);
+  backdrop-filter: blur(14px);
+}
+
+/* 基于标题/正文关键词生成的零成本封面视觉，可直接随卡片导出。 */
+.keyword-cover-visual {
+  --visual-accent: #ff2442;
+  --visual-ink: #202020;
+  --visual-muted: #888888;
+  --visual-angle: 24deg;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  color: var(--visual-ink);
+  background:
+    radial-gradient(circle at 78% 20%, color-mix(in srgb, var(--visual-accent) 24%, transparent) 0 12%, transparent 12.4%),
+    linear-gradient(135deg, rgba(255,255,255,.72), rgba(255,255,255,.12));
+}
+.keyword-cover-grid {
+  position: absolute;
+  inset: 0;
+  opacity: .18;
+  background-image:
+    linear-gradient(var(--visual-ink) 1px, transparent 1px),
+    linear-gradient(90deg, var(--visual-ink) 1px, transparent 1px);
+  background-size: 72px 72px;
+  transform: rotate(var(--visual-angle)) scale(1.3);
+}
+.keyword-cover-orbit {
+  position: absolute;
+  border: 8px solid var(--visual-accent);
+  border-radius: 50%;
+  opacity: .85;
+}
+.keyword-cover-orbit--a { width: 250px; height: 250px; right: 70px; top: 62px; }
+.keyword-cover-orbit--b { width: 90px; height: 90px; right: 280px; top: 250px; border-width: 18px; }
+.keyword-cover-index {
+  position: absolute;
+  top: 34px;
+  left: 38px;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: .18em;
+  color: var(--visual-accent);
+}
+.keyword-cover-word {
+  position: absolute;
+  left: 38px;
+  bottom: 102px;
+  max-width: 72%;
+  font-size: 76px;
+  line-height: 1;
+  letter-spacing: -.05em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.keyword-cover-word--ghost {
+  left: auto;
+  right: -8px;
+  bottom: 24px;
+  color: transparent;
+  -webkit-text-stroke: 2px color-mix(in srgb, var(--visual-ink) 35%, transparent);
+  opacity: .65;
+}
+.keyword-cover-tags {
+  position: absolute;
+  left: 40px;
+  bottom: 34px;
+  display: flex;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 650;
+}
+.keyword-cover-tags span { padding: 5px 11px; border: 1px solid currentColor; border-radius: 999px; }
+.keyword-cover-visual--1 { background-color: color-mix(in srgb, var(--visual-accent) 9%, white); }
+.keyword-cover-visual--1 .keyword-cover-orbit { border-radius: 0; transform: rotate(18deg); }
+.keyword-cover-visual--2 .keyword-cover-grid { background-size: 44px 44px; transform: none; }
+.keyword-cover-visual--2 .keyword-cover-orbit--a { border-width: 2px; box-shadow: 0 0 0 28px color-mix(in srgb, var(--visual-accent) 14%, transparent); }
+.keyword-cover-visual--3 .keyword-cover-word { writing-mode: vertical-rl; bottom: 28px; max-height: 78%; }
+
 /* 原版结构名：loading-cards-wrapper 内为 900×1500 卡片横向排列 */
 .loading-cards-wrapper {
   display: flex;
@@ -1071,15 +1159,16 @@ html {
 /* ══════════════════════════════════════════════════════════════════
  * 模板专属装饰元素（CSS 绘制，位于卡片背景之上、内容之下）
  * ══════════════════════════════════════════════════════════════════ */
-.template-youya-jihe::before {
+.template-ruishi-keban::before {
   content: '';
   position: absolute;
   top: 0;
   right: 0;
+  width: 22%;
+  height: 9px;
   z-index: 0;
   pointer-events: none;
-  border-top: 76px solid rgba(107, 91, 149, 0.16);
-  border-left: 76px solid transparent;
+  background: #e2231a;
 }
 .template-zazhi-xianfeng::before {
   content: '';
@@ -1097,27 +1186,51 @@ html {
     transparent 92px
   );
 }
-.template-pinjie-sekuai::before,
-.template-pinjie-sekuai::after {
+.template-guoji-zhuyi::before,
+.template-guoji-zhuyi::after {
   content: '';
   position: absolute;
-  width: 48px;
-  height: 48px;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.55;
 }
-.template-pinjie-sekuai::before {
+.template-guoji-zhuyi::before {
   top: 0;
   left: 0;
-  background: #4ecdc4;
-  border-bottom-right-radius: 48px;
+  width: 10px;
+  height: 100%;
+  background: #1457d9;
 }
-.template-pinjie-sekuai::after {
+.template-guoji-zhuyi::after {
   bottom: 0;
   right: 0;
-  background: #ff6b6b;
-  border-top-left-radius: 48px;
+  width: 28%;
+  height: 8px;
+  background: #0b1628;
+}
+.template-shishang-bianji::before {
+  content: 'MODE / EDIT';
+  position: absolute;
+  top: 22px;
+  right: 24px;
+  z-index: 0;
+  color: #ff4d00;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  writing-mode: vertical-rl;
+  pointer-events: none;
+}
+.template-kexue-tushi::before {
+  content: '01';
+  position: absolute;
+  right: 24px;
+  bottom: 18px;
+  z-index: 0;
+  color: rgba(0, 103, 197, 0.2);
+  font-size: 72px;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
 }
 .template-jiaocha-tuopu::before {
   content: '';
@@ -1206,30 +1319,46 @@ html {
 }
 
 /* ══════════════════════════════════════════════════════════════════
- * TipTap 编辑器图片缩放手柄
+ * TipTap 编辑器图片缩放：手柄属于图片节点，不再依赖易丢失的浮层定位
  * ══════════════════════════════════════════════════════════════════ */
 .tiptap-editor {
   position: relative;
 }
-.editor-image-resizer {
+.editor-resizable-image {
   position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: 12px 0;
+  line-height: 0;
 }
-.image-resize-handle {
+.editor-resizable-image > img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+.editor-inline-resize-handle {
   position: absolute;
-  width: 12px;
-  height: 12px;
-  right: -6px;
-  bottom: -6px;
+  right: -7px;
+  bottom: -7px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #ffffff;
   border: 2px solid #ff2442;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
   cursor: se-resize;
-  z-index: 30;
+  opacity: 0;
+  transform: scale(.8);
+  transition: opacity 160ms ease, transform 160ms ease;
   touch-action: none;
 }
-.tiptap-editor .ProseMirror img.ProseMirror-selectednode {
+.editor-resizable-image:hover .editor-inline-resize-handle,
+.editor-resizable-image.is-selected .editor-inline-resize-handle {
+  opacity: 1;
+  transform: scale(1);
+}
+.editor-resizable-image.is-selected > img {
   outline: 2px solid #ff2442;
   outline-offset: 2px;
-  border-radius: 8px;
 }
