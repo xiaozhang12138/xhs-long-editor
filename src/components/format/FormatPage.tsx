@@ -4,6 +4,7 @@ import { PageCardStream } from './PageCardStream';
 import { TemplateSelector } from './TemplateSelector';
 import { CoverSettings } from './CoverSettings';
 import { SizeSelector } from './SizeSelector';
+import { PaginationPanel } from './PaginationPanel';
 
 interface FormatPageProps {
   article: ArticleData;
@@ -11,6 +12,8 @@ interface FormatPageProps {
   onCoverColorChange: (color: string) => void;
   /** Set / clear the uploaded cover image (null = auto cover). */
   onCoverChange: (image: string | null) => void;
+  onCoverSettingsChange: (patch: Partial<ArticleData>) => void;
+  onManualPageBreaksChange: (breaks: string[]) => void;
   onSelectSizePreset: (presetId: string) => void;
   onCustomWidthChange: (width: number) => void;
   onCustomHeightChange: (height: number) => void;
@@ -25,10 +28,11 @@ interface FormatPageProps {
   onDraftLeave: () => void;
 }
 
-type PanelTab = 'template' | 'cover' | 'size';
+type PanelTab = 'template' | 'pagination' | 'cover' | 'size';
 
 const TABS: { id: PanelTab; label: string }[] = [
   { id: 'template', label: '选择模板' },
+  { id: 'pagination', label: '分页' },
   { id: 'cover', label: '封面设置' },
   { id: 'size', label: '尺寸' },
 ];
@@ -44,6 +48,8 @@ export const FormatPage: React.FC<FormatPageProps> = ({
   onTemplateSelect,
   onCoverColorChange,
   onCoverChange,
+  onCoverSettingsChange,
+  onManualPageBreaksChange,
   onSelectSizePreset,
   onCustomWidthChange,
   onCustomHeightChange,
@@ -62,6 +68,7 @@ export const FormatPage: React.FC<FormatPageProps> = ({
           onContentChange={onContentChange}
           onTitleChange={onTitleChange}
           onToast={onToast}
+          onManualPageBreaksChange={onManualPageBreaksChange}
         />
       </div>
 
@@ -98,10 +105,16 @@ export const FormatPage: React.FC<FormatPageProps> = ({
           )}
           {activeTab === 'cover' && (
             <CoverSettings
-              selectedColor={article.coverColor}
+              article={article}
+              onSettingsChange={onCoverSettingsChange}
               onColorChange={onCoverColorChange}
-              coverImage={article.coverImage}
               onCoverChange={onCoverChange}
+            />
+          )}
+          {activeTab === 'pagination' && (
+            <PaginationPanel
+              article={article}
+              onManualPageBreaksChange={onManualPageBreaksChange}
             />
           )}
           {activeTab === 'size' && (

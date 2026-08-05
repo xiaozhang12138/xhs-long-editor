@@ -33,6 +33,17 @@ const defaultArticle: ArticleData = {
   contentHtml: '',
   wordCount: 0,
   coverImage: null,
+  coverVariant: 0,
+  coverKeywords: [],
+  coverKeywordScale: 1,
+  coverKeywordX: 50,
+  coverKeywordY: 50,
+  coverAccentColor: '#FF2442',
+  coverLayout: 'knowledge',
+  coverImageScale: 1,
+  coverImageX: 50,
+  coverImageY: 50,
+  manualPageBreaks: [],
   description: '',
   tags: [],
   selectedTemplate: 'qinggan-mingkuai',
@@ -186,6 +197,15 @@ export function useArticleStore() {
   /** Update cover image */
   const updateCoverImage = useCallback((image: string | null) => {
     setArticle((prev) => ({ ...prev, coverImage: image }));
+  }, []);
+
+  /** Update automatic-cover/crop controls as one persisted patch. */
+  const updateCoverSettings = useCallback((patch: Partial<ArticleData>) => {
+    setArticle((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const setManualPageBreaks = useCallback((breaks: string[]) => {
+    setArticle((prev) => ({ ...prev, manualPageBreaks: [...new Set(breaks)] }));
   }, []);
 
   /** Update description */
@@ -376,6 +396,8 @@ export function useArticleStore() {
     updateContent,
     goToStage,
     updateCoverImage,
+    updateCoverSettings,
+    setManualPageBreaks,
     updateDescription,
     addTag,
     removeTag,

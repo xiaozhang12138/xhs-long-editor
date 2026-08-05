@@ -10,7 +10,7 @@ import { templates } from '../../data/templates';
 import { useArticlePages } from '../../hooks/useArticlePages';
 import { ArticlePage } from './ArticlePage';
 import { CardEditorToolbar } from './CardEditorToolbar';
-import { applyBlockEdits, insertImageAfterBlock } from '../../utils/mergeBack';
+import { applyBlockEdits, insertImageAfterBlock, moveBlockNear } from '../../utils/mergeBack';
 import type { BlockEdit } from '../../utils/mergeBack';
 import { normalizeCardEditHtml } from '../../utils/typography';
 import {
@@ -30,6 +30,7 @@ interface PageCardStreamProps {
   onTitleChange: (title: string) => void;
   /** Success toast callback (wired from App). */
   onToast?: (message: string) => void;
+  onManualPageBreaksChange: (breaks: string[]) => void;
 }
 
 type BusyState = 'idle' | 'single' | 'all';
@@ -76,6 +77,7 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
   onContentChange,
   onTitleChange,
   onToast,
+  onManualPageBreaksChange,
 }) => {
   const { pages, ready } = useArticlePages(article);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -88,6 +90,7 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [activeHtml, setActiveHtml] = useState('');
   const [activeTitleHtml, setActiveTitleHtml] = useState('');
+  const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const [busy, setBusy] = useState<BusyState>('idle');
   const [progress, setProgress] = useState<ExportProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -229,6 +232,7 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
         setActiveIndex(null);
         setActiveHtml('');
         setActiveTitleHtml('');
+        setActiveBlockId(null);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -287,6 +291,8 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
         '.xhs-card-content, .xhs-cover-title-editable'
       );
       if (!editableEl) return;
+      const block = target.closest('[data-block-id]') as HTMLElement | null;
+      setActiveBlockId(block?.dataset.blockId ?? null);
       e.preventDefault();
       activateCard(index, e.clientX, e.clientY);
     },
@@ -310,6 +316,62 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
       commitEdits(activeIndexRef.current);
     }
   }, [commitEdits]);
+
+  useEffect(() => {
+    if (activeIndex === null) return;
+    const update = () => {
+      const node = window.getSelection()?.anchorNode;
+      const element = node?.nodeType === Node.ELEMENT_NODE
+        ? (node as Element)
+        : node?.parentElement;
+      const block = element?.closest('[data-block-id]') as HTMLElement | null;
+      const card = cardRefs.current[activeIndex];
+      if (block && card?.contains(block)) setActiveBlockId(block.dataset.blockId ?? null);
+    };
+    document.addEventListener('selectionchange', update);
+    return () => document.removeEventListener('selectionchange', update);
+  }, [activeIndex]);
+
+  const activeBaseBlockId = activeBlockId?.replace(/-p\d+$/, '') ?? null;
+  const toggleManualBreak = useCallback(() => {
+    if (!activeBaseBlockId) return;
+    const current = article.manualPageBreaks ?? [];
+    const next = current.includes(activeBaseBlockId)
+      ? current.filter((id) => id !== activeBaseBlockId)
+      : [...current, activeBaseBlockId];
+    onManualPageBreaksChange(next);
+    onToast?.(current.includes(activeBaseBlockId) ? '已取消手动分页' : '已从当前段落开始新页');
+  }, [activeBaseBlockId, article.manualPageBreaks, onManualPageBreaksChange, onToast]);
+
+  const moveActiveBlock = useCallback((direction: 'previous' | 'next') => {
+    if (!activeBaseBlockId) return;
+    flushPendingEdit();
+    const pageIndex = pages.findIndex((page) =>
+      page.blocks.some((block) => block.id.replace(/-p\d+$/, '') === activeBaseBlockId)
+    );
+    const targetPage = pages[pageIndex + (direction === 'previous' ? -1 : 1)];
+    if (!targetPage?.blocks.length) {
+      onToast?.(direction === 'previous' ? '已经是第一张正文页' : '已经是最后一张正文页');
+      return;
+    }
+    const target = direction === 'previous'
+      ? targetPage.blocks[0]
+      : targetPage.blocks[targetPage.blocks.length - 1];
+    const result = moveBlockNear(
+      article.content,
+      activeBaseBlockId,
+      target.id,
+      direction === 'previous' ? 'before' : 'after'
+    );
+    if (!result) {
+      onToast?.('当前段落属于列表或拆分页，暂时不能移动');
+      return;
+    }
+    onContentChange(result.json, result.html);
+    setActiveIndex(null);
+    setActiveBlockId(null);
+    onToast?.(direction === 'previous' ? '段落已移到上一页' : '段落已移到下一页');
+  }, [activeBaseBlockId, article.content, pages, flushPendingEdit, onContentChange, onToast]);
 
   /** Resolve the source block nearest the caret, falling back to card end. */
   const activeAnchorBlockId = useCallback((): string | undefined => {
@@ -493,6 +555,10 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
               >
                 完成
               </button>
+              <span className="toolbar-divider" />
+              <button type="button" className="pagination-action" disabled={!activeBaseBlockId} onClick={() => moveActiveBlock('previous')}>← 上一页</button>
+              <button type="button" className={`pagination-action ${activeBaseBlockId && article.manualPageBreaks?.includes(activeBaseBlockId) ? 'active' : ''}`} disabled={!activeBaseBlockId} onClick={toggleManualBreak}>从这里分页</button>
+              <button type="button" className="pagination-action" disabled={!activeBaseBlockId} onClick={() => moveActiveBlock('next')}>下一页 →</button>
             </div>
           )}
           <div className="flex items-center gap-3">
@@ -573,6 +639,14 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
                     : '生成中…'
                   : '下载此图'}
               </button>
+
+              {!!page.warnings?.length && (
+                <div className="page-quality-chips" title={page.warnings.map((warning) => warning.message).join('；')}>
+                  {page.warnings.slice(0, 2).map((warning) => (
+                    <span key={warning.type}>⚠ {warning.message}</span>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
 

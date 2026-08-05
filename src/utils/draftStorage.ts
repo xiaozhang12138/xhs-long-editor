@@ -45,6 +45,17 @@ export function normalizeArticle(raw: unknown): ArticleData {
     contentHtml: '',
     wordCount: 0,
     coverImage: null,
+    coverVariant: 0,
+    coverKeywords: [],
+    coverKeywordScale: 1,
+    coverKeywordX: 50,
+    coverKeywordY: 50,
+    coverAccentColor: '#FF2442',
+    coverLayout: 'knowledge',
+    coverImageScale: 1,
+    coverImageX: 50,
+    coverImageY: 50,
+    manualPageBreaks: [],
     description: '',
     tags: [],
     selectedTemplate: 'qinggan-mingkuai',
@@ -65,6 +76,8 @@ export function normalizeArticle(raw: unknown): ArticleData {
     parsed.selectedSize = defaultArticleSize;
   }
   if (!Array.isArray(parsed.tags)) parsed.tags = [];
+  if (!Array.isArray(parsed.coverKeywords)) parsed.coverKeywords = [];
+  if (!Array.isArray(parsed.manualPageBreaks)) parsed.manualPageBreaks = [];
   return parsed;
 }
 

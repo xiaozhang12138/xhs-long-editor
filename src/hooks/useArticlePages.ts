@@ -33,6 +33,7 @@ export function useArticlePages(article: ArticleData): ArticlePages {
     const tpl =
       templates.find((t) => t.id === article.selectedTemplate) || templates[0];
     const options = buildPaginationOptions(article.selectedSize, tpl);
+    options.manualBreakBefore = new Set(article.manualPageBreaks ?? []);
     const blocks = parseContentToBlocks(article.content);
 
     resolveImageSizes(blocks).then((resolved) => {
@@ -51,7 +52,7 @@ export function useArticlePages(article: ArticleData): ArticlePages {
     return () => {
       cancelled = true;
     };
-  }, [article.content, article.selectedTemplate, article.selectedSize]);
+  }, [article.content, article.selectedTemplate, article.selectedSize, article.manualPageBreaks]);
 
   return { pages, ready };
 }

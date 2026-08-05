@@ -121,6 +121,19 @@ export interface PageResult {
   pageIndex: number;
   blocks: PageBlock[];
   isCover?: boolean;
+  warnings?: PageQualityWarning[];
+}
+
+export type PageQualityWarningType =
+  | 'dense'
+  | 'sparse'
+  | 'small-font'
+  | 'orphan-heading'
+  | 'large-image';
+
+export interface PageQualityWarning {
+  type: PageQualityWarningType;
+  message: string;
 }
 
 /** Options controlling the pagination behaviour. */
@@ -145,6 +158,8 @@ export interface PaginationOptions {
   headingScale?: { 1: number; 2: number };
   /** Max width of an image as a ratio of the content width. */
   imageMaxWidthRatio?: number;
+  /** Source block ids that must start on a fresh page. */
+  manualBreakBefore?: Set<string>;
 }
 
 /* ──────────────────────────────────────────────────────────────────────
@@ -463,9 +478,19 @@ function splitBlockByLines(
   while (nodesToText(rest).length > 0 && guard < 1000) {
     guard += 1;
     const total = nodesToText(rest);
+    const remainingLines = estimateLineCount(
+      total,
+      ctx.contentWidth,
+      fs,
+      ctx.opts.letterSpacing
+    );
+    // Widow control: when a split would leave exactly one line, move one
+    // extra line forward so the next page begins with at least two lines.
+    const linesThisPart =
+      maxLines > 2 && remainingLines === maxLines + 1 ? maxLines - 1 : maxLines;
     const offset = findCutOffset(
       total,
-      maxLines,
+      linesThisPart,
       ctx.contentWidth,
       fs,
       ctx.opts.letterSpacing
@@ -542,9 +567,31 @@ export function paginateBlocks(
     }
   };
 
-  for (const block of blocks) {
+  const blockHeight = (block: PageBlock): number => estimateBlockHeight(block, ctx);
+  const isShortCaption = (block: PageBlock | undefined): boolean =>
+    !!block &&
+    (block.type === 'text' || block.type === 'quote') &&
+    nodesToText(block.nodes).trim().length <= 80;
+
+  for (let index = 0; index < blocks.length; index += 1) {
+    const block = blocks[index];
+    const baseId = block.id.replace(/-p\d+$/, '');
+    if (opts.manualBreakBefore?.has(baseId) && current.length) flush();
+
     const h = estimateBlockHeight(block, ctx);
     if (h <= ctx.contentHeight) {
+      const next = blocks[index + 1];
+      const nextHeight = next ? blockHeight(next) : 0;
+      const keepWithNext =
+        block.type === 'heading' || (block.type === 'image' && isShortCaption(next));
+      if (
+        keepWithNext &&
+        current.length &&
+        h + nextHeight <= ctx.contentHeight &&
+        used + h + nextHeight > ctx.contentHeight
+      ) {
+        flush();
+      }
       // Normal block: move to next page as a whole when it does not fit.
       if (used + h > ctx.contentHeight && current.length) flush();
       current.push(block);
@@ -561,5 +608,64 @@ export function paginateBlocks(
     }
   }
   flush();
-  return results;
+
+  // Gentle page balancing: move one complete trailing block forward only
+  // when it materially reduces the fill difference between adjacent pages.
+  for (let i = 0; i < results.length - 1; i += 1) {
+    const left = results[i];
+    const right = results[i + 1];
+    const rightFirstId = right.blocks[0]?.id.replace(/-p\d+$/, '');
+    if (rightFirstId && opts.manualBreakBefore?.has(rightFirstId)) continue;
+    if (left.blocks.length < 2 || !right.blocks.length) continue;
+    const candidate = left.blocks[left.blocks.length - 1];
+    const beforeCandidate = left.blocks[left.blocks.length - 2];
+    if (candidate.type === 'heading' || beforeCandidate?.type === 'heading') continue;
+    const leftUsed = left.blocks.reduce((sum, item) => sum + blockHeight(item), 0);
+    const rightUsed = right.blocks.reduce((sum, item) => sum + blockHeight(item), 0);
+    const candidateHeight = blockHeight(candidate);
+    if (rightUsed + candidateHeight > contentHeight) continue;
+    const beforeDiff = Math.abs(leftUsed - rightUsed);
+    const afterDiff = Math.abs(leftUsed - candidateHeight - rightUsed - candidateHeight);
+    if (afterDiff + contentHeight * 0.08 < beforeDiff) {
+      left.blocks.pop();
+      right.blocks.unshift(candidate);
+    }
+  }
+
+  const analyzed = analyzePaginationQuality(results, opts);
+  return results.map((page, index) => ({ ...page, warnings: analyzed[index] }));
+}
+
+/** Explain layout risks without blocking export. */
+export function analyzePaginationQuality(
+  pages: PageResult[],
+  opts: PaginationOptions
+): PageQualityWarning[][] {
+  const contentWidth = Math.max(1, opts.width - opts.padding * 2);
+  const contentHeight = Math.max(1, opts.height - opts.padding * 2);
+  const ctx: BlockLayoutContext = { contentWidth, contentHeight, opts };
+  return pages.map((page, pageIndex) => {
+    const warnings: PageQualityWarning[] = [];
+    const used = page.blocks.reduce((sum, block) => sum + estimateBlockHeight(block, ctx), 0);
+    const ratio = used / contentHeight;
+    if (ratio >= 0.92) warnings.push({ type: 'dense', message: '本页内容较密' });
+    if (pageIndex < pages.length - 1 && ratio <= 0.42) {
+      warnings.push({ type: 'sparse', message: '本页留白较多' });
+    }
+    const last = page.blocks[page.blocks.length - 1];
+    if (last?.type === 'heading') {
+      warnings.push({ type: 'orphan-heading', message: '标题后缺少正文' });
+    }
+    if (opts.baseFontSize < 28 || page.blocks.some((block) =>
+      'fontSize' in block && typeof block.fontSize === 'number' && block.fontSize < 12
+    )) {
+      warnings.push({ type: 'small-font', message: '存在偏小字号' });
+    }
+    if (page.blocks.some((block) =>
+      block.type === 'image' && (block.displayHeight ?? 0) > contentHeight * 0.8
+    )) {
+      warnings.push({ type: 'large-image', message: '图片占页过大' });
+    }
+    return warnings;
+  });
 }

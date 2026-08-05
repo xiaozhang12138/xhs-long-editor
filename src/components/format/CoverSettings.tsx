@@ -1,114 +1,182 @@
-import React, { useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
+import type { ArticleData, CoverLayout } from '../../types';
 import { coverColors } from '../../data/templates';
+import { buildCoverVisualData } from '../../utils/coverVisual';
 
 interface CoverSettingsProps {
-  selectedColor: string;
+  article: ArticleData;
   onColorChange: (color: string) => void;
-  /** Current uploaded cover image (data URL) or null. */
-  coverImage: string | null;
-  /** Set / clear the uploaded cover image. */
   onCoverChange: (image: string | null) => void;
+  onSettingsChange: (patch: Partial<ArticleData>) => void;
 }
 
-/**
- * Cover settings panel.
- * - Auto cover: template background color choice (white / black / beige).
- * - Upload cover: replaces the auto-generated cover with a user image;
- *   a "使用自动封面" action switches back.
- */
+const LAYOUTS: Array<{ id: CoverLayout; label: string; code: string }> = [
+  { id: 'knowledge', label: '知识科普', code: 'KNOW' },
+  { id: 'lifestyle', label: '生活方式', code: 'LIFE' },
+  { id: 'opinion', label: '人物观点', code: 'VOICE' },
+  { id: 'business', label: '商业分析', code: 'BIZ' },
+];
+
+/** Full cover studio: candidates, keyword controls and uploaded-image crop. */
 export const CoverSettings: React.FC<CoverSettingsProps> = ({
-  selectedColor,
+  article,
   onColorChange,
-  coverImage,
   onCoverChange,
+  onSettingsChange,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const generated = useMemo(
+    () => buildCoverVisualData(article.title, article.contentHtml),
+    [article.title, article.contentHtml]
+  );
+  const keywords = article.coverKeywords.length
+    ? article.coverKeywords.slice(0, 3)
+    : generated.keywords.slice(0, 3);
+
+  const updateKeyword = (index: number, value: string) => {
+    const next = [...keywords];
+    while (next.length < 3) next.push('');
+    next[index] = value.slice(0, 12);
+    onSettingsChange({ coverKeywords: next });
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) return;
+    if (!file?.type.startsWith('image/')) return;
     const reader = new FileReader();
     reader.onload = () => {
       onCoverChange(reader.result as string);
+      onSettingsChange({ coverImageScale: 1, coverImageX: 50, coverImageY: 50 });
     };
     reader.readAsDataURL(file);
   };
 
   return (
-    <div className="py-4">
-      {/* Upload cover */}
-      <h3 className="text-sm font-medium text-[#333] mb-3">上传封面</h3>
-      {coverImage ? (
-        <div className="flex items-center gap-4">
-          <div className="relative inline-block">
-            <img
-              src={coverImage}
-              alt="封面"
-              className="w-[120px] h-[80px] object-cover rounded-xhsCard border border-[#E8E8E8]"
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => inputRef.current?.click()}
-              className="px-3 py-1.5 text-xs rounded-xhs cursor-pointer border border-[#E8E8E8] bg-white text-[#666] hover:border-[#D0D0D0] transition-colors"
-            >
-              更换图片
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onCoverChange(null);
-                if (inputRef.current) inputRef.current.value = '';
-              }}
-              className="px-3 py-1.5 text-xs rounded-xhs cursor-pointer border border-[#FF2442] bg-white text-[#FF2442] hover:bg-[#FFF0F2] transition-colors"
-            >
-              使用自动封面
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="upload-area inline-flex flex-col items-center gap-2" onClick={() => inputRef.current?.click()}>
-          <svg width="28" height="28" viewBox="0 0 32 32" fill="none" className="text-[#BBBBBB]">
-            <rect x="4" y="8" width="24" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" fill="none" />
-            <circle cx="12" cy="15" r="2.5" stroke="currentColor" strokeWidth="1.3" fill="none" />
-            <path d="M4 22l6-5 4 4 6-7 6 8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            <path d="M16 4v6M13 7h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-          <span className="text-xs text-[#999]">点击上传封面图（可替换自动封面）</span>
-        </div>
-      )}
-
-      {/* Auto cover color */}
-      <h3 className="text-sm font-medium text-[#333] mt-6 mb-3">自动封面颜色</h3>
-      <div className="flex items-center gap-4">
-        {coverColors.map((cc) => (
-          <button
-            key={cc.id}
-            type="button"
-            className={`color-circle ${selectedColor === cc.id ? 'selected' : ''}`}
-            style={{
-              backgroundColor: cc.color,
-              border: cc.color === '#FFFFFF' ? '1px solid #E8E8E8' : undefined,
-            }}
-            onClick={() => onColorChange(cc.id)}
-            title={cc.label}
-          />
-        ))}
+    <div className="cover-studio pb-8">
+      <div className="cover-studio-heading">
+        <span>AUTO COVER STUDIO</span>
+        <strong>封面工作台</strong>
+        <p>从文章关键词生成候选，也可以精调自己的图片。</p>
       </div>
 
-      <p className="text-xs text-[#999] mt-4 leading-relaxed">
-        未上传封面时使用自动封面（模板背景 + 标题 + 装饰）；上传后封面页将替换为你的图片，标题叠加在图片底部。
-      </p>
+      <section className="cover-control-section">
+        <div className="cover-section-title"><b>01</b><span>选择候选</span></div>
+        <div className="cover-candidate-grid">
+          {[0, 1, 2, 3].map((variant) => (
+            <button
+              key={variant}
+              type="button"
+              className={`cover-candidate cover-candidate--${variant} ${article.coverVariant === variant ? 'selected' : ''}`}
+              style={{ '--candidate-accent': article.coverAccentColor } as React.CSSProperties}
+              onClick={() => {
+                onCoverChange(null);
+                onSettingsChange({ coverVariant: variant });
+              }}
+              aria-label={`自动封面候选 ${variant + 1}`}
+            >
+              <i />
+              <strong>{keywords[0] || '灵感'}</strong>
+              <small>0{variant + 1} / AUTO</small>
+            </button>
+          ))}
+        </div>
+      </section>
 
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleFileChange}
-      />
+      <section className="cover-control-section">
+        <div className="cover-section-title"><b>02</b><span>内容与结构</span></div>
+        <div className="cover-layout-grid">
+          {LAYOUTS.map((layout) => (
+            <button
+              key={layout.id}
+              type="button"
+              className={article.coverLayout === layout.id ? 'selected' : ''}
+              onClick={() => onSettingsChange({ coverLayout: layout.id })}
+            >
+              <small>{layout.code}</small><span>{layout.label}</span>
+            </button>
+          ))}
+        </div>
+        <div className="mt-4 space-y-2">
+          {[0, 1, 2].map((index) => (
+            <label key={index} className="cover-keyword-field">
+              <span>关键词 {index + 1}</span>
+              <input
+                value={keywords[index] ?? ''}
+                placeholder="输入关键词"
+                onChange={(event) => updateKeyword(index, event.target.value)}
+              />
+            </label>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="cover-text-action"
+          onClick={() => onSettingsChange({ coverKeywords: generated.keywords.slice(0, 3) })}
+        >
+          重新从文章提取关键词
+        </button>
+      </section>
+
+      <section className="cover-control-section">
+        <div className="cover-section-title"><b>03</b><span>视觉微调</span></div>
+        <label className="cover-slider-row">
+          <span>关键词大小</span>
+          <input type="range" min="70" max="145" value={Math.round(article.coverKeywordScale * 100)} onChange={(e) => onSettingsChange({ coverKeywordScale: Number(e.target.value) / 100 })} />
+          <output>{Math.round(article.coverKeywordScale * 100)}%</output>
+        </label>
+        <label className="cover-slider-row">
+          <span>水平位置</span>
+          <input type="range" min="15" max="85" value={article.coverKeywordX} onChange={(e) => onSettingsChange({ coverKeywordX: Number(e.target.value) })} />
+          <output>{article.coverKeywordX}</output>
+        </label>
+        <label className="cover-slider-row">
+          <span>垂直位置</span>
+          <input type="range" min="20" max="80" value={article.coverKeywordY} onChange={(e) => onSettingsChange({ coverKeywordY: Number(e.target.value) })} />
+          <output>{article.coverKeywordY}</output>
+        </label>
+        <div className="cover-color-row">
+          <span>强调色</span>
+          <input type="color" value={article.coverAccentColor} onChange={(e) => onSettingsChange({ coverAccentColor: e.target.value })} />
+          {coverColors.map((color) => (
+            <button key={color.id} type="button" style={{ background: color.color }} onClick={() => onColorChange(color.id)} title={color.label} />
+          ))}
+        </div>
+      </section>
+
+      <section className="cover-control-section">
+        <div className="cover-section-title"><b>04</b><span>上传与裁剪</span></div>
+        {article.coverImage ? (
+          <>
+            <div className="cover-crop-preview">
+              <img
+                src={article.coverImage}
+                alt="封面裁剪预览"
+                style={{
+                  objectPosition: `${article.coverImageX}% ${article.coverImageY}%`,
+                  transform: `scale(${article.coverImageScale})`,
+                  transformOrigin: `${article.coverImageX}% ${article.coverImageY}%`,
+                }}
+              />
+              <span>安全裁剪区</span>
+            </div>
+            <label className="cover-slider-row"><span>图片缩放</span><input type="range" min="100" max="260" value={Math.round(article.coverImageScale * 100)} onChange={(e) => onSettingsChange({ coverImageScale: Number(e.target.value) / 100 })} /><output>{Math.round(article.coverImageScale * 100)}%</output></label>
+            <label className="cover-slider-row"><span>水平焦点</span><input type="range" min="0" max="100" value={article.coverImageX} onChange={(e) => onSettingsChange({ coverImageX: Number(e.target.value) })} /><output>{article.coverImageX}</output></label>
+            <label className="cover-slider-row"><span>垂直焦点</span><input type="range" min="0" max="100" value={article.coverImageY} onChange={(e) => onSettingsChange({ coverImageY: Number(e.target.value) })} /><output>{article.coverImageY}</output></label>
+            <div className="flex gap-2 mt-3">
+              <button type="button" className="cover-text-action" onClick={() => inputRef.current?.click()}>更换图片</button>
+              <button type="button" className="cover-text-action danger" onClick={() => onCoverChange(null)}>使用自动封面</button>
+            </div>
+          </>
+        ) : (
+          <button type="button" className="cover-upload-button" onClick={() => inputRef.current?.click()}>
+            <b>＋</b><span>上传图片并调整裁剪焦点</span>
+          </button>
+        )}
+      </section>
+
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
     </div>
   );
 };
+
+export default CoverSettings;

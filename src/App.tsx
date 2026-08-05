@@ -177,6 +177,8 @@ function App() {
               onTemplateSelect={store.selectTemplate}
               onCoverColorChange={store.setCoverColor}
               onCoverChange={store.updateCoverImage}
+              onCoverSettingsChange={store.updateCoverSettings}
+              onManualPageBreaksChange={store.setManualPageBreaks}
               onSelectSizePreset={store.selectSizePreset}
               onCustomWidthChange={store.setCustomWidth}
               onCustomHeightChange={store.setCustomHeight}

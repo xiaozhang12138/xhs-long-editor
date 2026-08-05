@@ -245,3 +245,33 @@ export function insertImageAfterBlock(
 
   return { json: JSON.stringify(doc), html: docToHtml(doc) };
 }
+
+/** Move a top-level source block before/after another top-level block. */
+export function moveBlockNear(
+  contentJson: string,
+  blockId: string,
+  targetBlockId: string,
+  placement: 'before' | 'after'
+): MergeBackResult | null {
+  let doc: TipTapDoc;
+  try {
+    doc = JSON.parse(contentJson) as TipTapDoc;
+  } catch {
+    return null;
+  }
+  if (!doc || doc.type !== 'doc' || !Array.isArray(doc.content)) return null;
+  const registry = buildBlockRegistry(doc);
+  const source = registry.get(blockId.replace(/-p\d+$/, ''));
+  const target = registry.get(targetBlockId.replace(/-p\d+$/, ''));
+  if (!source || !target || source.path.length !== 1 || target.path.length !== 1) {
+    return null;
+  }
+  const sourceIndex = source.path[0];
+  const originalTargetIndex = target.path[0];
+  if (sourceIndex === originalTargetIndex) return null;
+  const [node] = doc.content.splice(sourceIndex, 1);
+  let targetIndex = originalTargetIndex - (sourceIndex < originalTargetIndex ? 1 : 0);
+  if (placement === 'after') targetIndex += 1;
+  doc.content.splice(Math.max(0, targetIndex), 0, node);
+  return { json: JSON.stringify(doc), html: docToHtml(doc) };
+}

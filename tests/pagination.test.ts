@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  analyzePaginationQuality,
   estimatePageCountForText,
   estimateBlockHeight,
   paginateBlocks,
@@ -295,5 +296,52 @@ describe('paginateBlocks 混合内容顺序', () => {
     expect(pages.length).toBeGreaterThan(0);
     const flat = pages.flatMap((p) => p.blocks);
     expect(flat.map((b) => b.id)).toEqual(['h', 'p1', 'img', 'li', 'p2']);
+  });
+});
+
+describe('分页质量规则与手动控制', () => {
+  it('手动分页点强制目标段落从新页开始', () => {
+    const opts = { ...SMALL_OPTS, manualBreakBefore: new Set(['b1']) };
+    const pages = paginateBlocks([
+      textBlock('b0', chars(12)),
+      textBlock('b1', chars(12)),
+    ], opts);
+    expect(pages).toHaveLength(2);
+    expect(pages[1].blocks[0].id).toBe('b1');
+  });
+
+  it('标题和下一段能够放在同页时不会把标题孤立在页尾', () => {
+    const pages = paginateBlocks([
+      textBlock('b0', chars(28)),
+      { id: 'b1', type: 'heading', level: 2, nodes: [{ text: '重要标题' }] },
+      textBlock('b2', '标题说明'),
+    ], SMALL_OPTS);
+    const headingPage = pages.findIndex((page) => page.blocks.some((block) => block.id === 'b1'));
+    expect(pages[headingPage].blocks.some((block) => block.id === 'b2')).toBe(true);
+  });
+
+  it('图片与紧随其后的短说明优先进入同一页', () => {
+    const pages = paginateBlocks([
+      textBlock('b0', chars(34)),
+      { id: 'b1', type: 'image', src: 'x', naturalWidth: 80, naturalHeight: 40 },
+      textBlock('b2', '图片说明'),
+    ], SMALL_OPTS);
+    const imagePage = pages.findIndex((page) => page.blocks.some((block) => block.id === 'b1'));
+    expect(pages[imagePage].blocks.some((block) => block.id === 'b2')).toBe(true);
+  });
+
+  it('质量诊断提示过密和占页过大的图片', () => {
+    const image: PageBlock = {
+      id: 'b0', type: 'image', src: 'x', naturalWidth: 100, naturalHeight: 500,
+    };
+    estimateBlockHeight(image, {
+      contentWidth: SMALL_OPTS.width - SMALL_OPTS.padding * 2,
+      contentHeight: SMALL_OPTS.height - SMALL_OPTS.padding * 2,
+      opts: SMALL_OPTS,
+    });
+    const warnings = analyzePaginationQuality([{ pageIndex: 0, blocks: [image] }], SMALL_OPTS)[0];
+    expect(warnings.map((warning) => warning.type)).toEqual(
+      expect.arrayContaining(['dense', 'large-image'])
+    );
   });
 });

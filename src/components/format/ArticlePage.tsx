@@ -70,7 +70,14 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
   const base = resolveCardBodyFontSize(tpl.baseFontSize);
   const cardPadding = resolveCardPadding(tpl.padding);
   const coverTitleSize = resolveCoverTitleFontSize(tpl.baseFontSize, article.title);
-  const coverVisual = buildCoverVisualData(article.title, article.contentHtml);
+  const generatedCoverVisual = buildCoverVisualData(article.title, article.contentHtml);
+  const coverVisual = {
+    ...generatedCoverVisual,
+    variant: article.coverVariant ?? generatedCoverVisual.variant,
+    keywords: article.coverKeywords?.filter(Boolean).length
+      ? article.coverKeywords.filter(Boolean).slice(0, 3)
+      : generatedCoverVisual.keywords,
+  };
   const isEditable = active && editableHtml !== undefined && !page.isCover;
 
   // ── Image selection + resize inside the active card ────────────────
@@ -510,6 +517,9 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
               width: '100%',
               height: '100%',
               objectFit: 'cover',
+              objectPosition: `${article.coverImageX}% ${article.coverImageY}%`,
+              transform: `scale(${article.coverImageScale})`,
+              transformOrigin: `${article.coverImageX}% ${article.coverImageY}%`,
             }}
           />
           <span className="card-page-badge">
@@ -572,7 +582,7 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
               marginBottom: 20,
             }}
           >
-            <KeywordCoverVisual data={coverVisual} template={tpl} />
+            <KeywordCoverVisual data={coverVisual} template={tpl} article={article} />
           </div>
 
           <div style={{ textAlign: tpl.headingAlign }}>
@@ -689,20 +699,25 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
 function KeywordCoverVisual({
   data,
   template,
+  article,
 }: {
   data: ReturnType<typeof buildCoverVisualData>;
   template: Template;
+  article: ArticleData;
 }): React.ReactElement {
   const angle = 12 + (data.seed % 38);
   const second = data.keywords[1] ?? data.keywords[0];
   return (
     <div
-      className={`keyword-cover-visual keyword-cover-visual--${data.variant}`}
+      className={`keyword-cover-visual keyword-cover-visual--${data.variant} keyword-cover-layout--${article.coverLayout}`}
       style={{
-        '--visual-accent': template.accentColor,
+        '--visual-accent': article.coverAccentColor || template.accentColor,
         '--visual-ink': template.textColor,
         '--visual-muted': template.mutedColor,
         '--visual-angle': `${angle}deg`,
+        '--keyword-scale': article.coverKeywordScale,
+        '--keyword-x': `${article.coverKeywordX}%`,
+        '--keyword-y': `${article.coverKeywordY}%`,
       } as React.CSSProperties}
     >
       <div className="keyword-cover-grid" />

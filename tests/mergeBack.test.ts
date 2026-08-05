@@ -4,6 +4,7 @@ import {
   applyBlockEdits,
   buildBlockRegistry,
   insertImageAfterBlock,
+  moveBlockNear,
 } from '../src/utils/mergeBack';
 import type { PageResult } from '../src/utils/pagination';
 
@@ -216,5 +217,26 @@ describe('insertImageAfterBlock 排版后插图', () => {
     const doc = JSON.parse(result!.json) as { content: Array<{ type: string }> };
     expect(doc.content).toHaveLength(1);
     expect(doc.content[0].type).toBe('image');
+  });
+});
+
+describe('moveBlockNear 手动分页顺序调整', () => {
+  it('把顶层段落移动到目标段落之后', () => {
+    const result = moveBlockNear(DOC, 'b0', 'b2', 'after');
+    const doc = JSON.parse(result!.json) as { content: Array<{ content?: Array<{ text?: string }> }> };
+    expect(doc.content.map((node) => node.content?.[0]?.text)).toEqual([
+      '小标题', '第三段', '第一段内容',
+    ]);
+  });
+
+  it('列表子项不做危险的跨容器移动', () => {
+    const listDoc = JSON.stringify({
+      type: 'doc',
+      content: [
+        { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '一' }] }] }] },
+        { type: 'paragraph', content: [{ type: 'text', text: '二' }] },
+      ],
+    });
+    expect(moveBlockNear(listDoc, 'b0', 'b1', 'after')).toBeNull();
   });
 });

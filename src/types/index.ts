@@ -1,6 +1,8 @@
 /** Application stage/page type */
 export type AppStage = 'editor' | 'format' | 'publish';
 
+export type CoverLayout = 'knowledge' | 'lifestyle' | 'opinion' | 'business';
+
 /** Decorative accent style applied by a template */
 export type DecorativeStyle =
   | 'none'
@@ -99,6 +101,20 @@ export interface ArticleData {
   contentHtml: string;
   wordCount: number;
   coverImage: string | null;
+  /** User-controlled automatic cover composition. */
+  coverVariant: number;
+  coverKeywords: string[];
+  coverKeywordScale: number;
+  coverKeywordX: number;
+  coverKeywordY: number;
+  coverAccentColor: string;
+  coverLayout: CoverLayout;
+  /** Uploaded-cover crop controls. */
+  coverImageScale: number;
+  coverImageX: number;
+  coverImageY: number;
+  /** Stable source block ids that must start a new page. */
+  manualPageBreaks: string[];
   description: string;
   tags: string[];
   selectedTemplate: string;
