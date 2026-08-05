@@ -6,7 +6,7 @@ interface ImageUploaderProps {
 }
 
 /**
- * Cover image upload component with drag-and-drop support.
+ * Cover image upload component.
  * Shows thumbnail after upload with delete option.
  */
 export const ImageUploader: React.FC<ImageUploaderProps> = ({
@@ -76,11 +76,6 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
         className="hidden"
         onChange={handleFileChange}
       />
-
-      {/* Suggestion link */}
-      <a href="#" className="inline-flex items-center gap-1 ml-4 text-sm text-[#FF2442] hover:underline no-underline">
-        📷 获取封面建议
-      </a>
     </div>
   );
 };

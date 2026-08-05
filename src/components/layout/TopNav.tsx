@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 /**
  * Top navigation bar with XHS logo and user info.
  * Used across all 3 stages.
  */
 export const TopNav: React.FC = () => {
-  const [showDropdown, setShowDropdown] = useState(false);
-
   return (
     <nav className="h-14 bg-white border-b border-[#E8E8E8] flex items-center justify-between px-6 fixed top-0 left-0 right-0 z-50">
       {/* Left: Logo */}
@@ -24,42 +22,12 @@ export const TopNav: React.FC = () => {
         <span className="text-sm text-[#999] ml-1">创作服务平台</span>
       </div>
 
-      {/* Right: User info */}
-      <div className="relative">
-        <button
-          type="button"
-          className="flex items-center gap-2 cursor-pointer border-none bg-transparent hover:opacity-80 transition-opacity"
-          onClick={() => setShowDropdown(!showDropdown)}
-        >
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium overflow-hidden">
-            健
-          </div>
-          <span className="text-sm text-[#333]">健康的蛤蟆</span>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="#999">
-            <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-
-        {showDropdown && (
-          <>
-            <div
-              className="fixed inset-0 z-40"
-              onClick={() => setShowDropdown(false)}
-            />
-            <div className="absolute right-0 top-full mt-2 w-44 bg-white rounded-xhsCard shadow-lg border border-[#E8E8E8] py-1 z-50">
-              {['个人主页', '账号设置', '退出登录'].map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  className="w-full text-left px-4 py-2 text-sm text-[#333] hover:bg-[#F5F5F5] cursor-pointer border-none bg-transparent"
-                  onClick={() => setShowDropdown(false)}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+      {/* 个人自用工具没有账号系统，用户信息仅作身份标识。 */}
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium overflow-hidden">
+          健
+        </div>
+        <span className="text-sm text-[#333]">健康的蛤蟆</span>
       </div>
     </nav>
   );

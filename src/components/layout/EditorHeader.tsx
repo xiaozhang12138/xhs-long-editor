@@ -21,17 +21,19 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
 }) => {
   return (
     <div className="h-12 bg-white border-b border-[#E8E8E8] flex items-center px-6 gap-4 shrink-0">
-      {/* Back button */}
-      <button
-        type="button"
-        onClick={onBack}
-        className="flex items-center gap-1 text-sm text-[#666] hover:text-[#333] cursor-pointer border-none bg-transparent transition-colors"
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <span>返回</span>
-      </button>
+      {/* 第一阶段没有上一步，不渲染无效的返回按钮。 */}
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-1 text-sm text-[#666] hover:text-[#333] cursor-pointer border-none bg-transparent transition-colors"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>返回</span>
+        </button>
+      )}
 
       {/* Toolbar */}
       {showToolbar && editor && <Toolbar editor={editor} />}

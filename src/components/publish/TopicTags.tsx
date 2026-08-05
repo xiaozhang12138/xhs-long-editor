@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Tag } from '../shared/Tag';
 import { recommendedTags } from '../../data/templates';
 
@@ -10,7 +10,7 @@ interface TopicTagsProps {
 
 /**
  * Topic tags input with recommended tags and custom tag entry.
- * Shows count (0/1000) and supports @mention and emoji.
+ * Shows the accumulated topic-character count (0/1000).
  */
 export const TopicTags: React.FC<TopicTagsProps> = ({
   tags,
@@ -19,7 +19,6 @@ export const TopicTags: React.FC<TopicTagsProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [showMore, setShowMore] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const visibleRecommended = showMore
     ? recommendedTags
@@ -82,7 +81,6 @@ export const TopicTags: React.FC<TopicTagsProps> = ({
 
         {/* Input */}
         <input
-          ref={inputRef}
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
@@ -92,22 +90,7 @@ export const TopicTags: React.FC<TopicTagsProps> = ({
           maxLength={100}
         />
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-2 text-xs text-[#999]">
-          <button
-            type="button"
-            className="cursor-pointer border-none bg-transparent hover:text-[#666]"
-            title="@用户"
-          >
-            @用户
-          </button>
-          <button
-            type="button"
-            className="cursor-pointer border-none bg-transparent hover:text-[#666]"
-            title="表情"
-          >
-            😊表情
-          </button>
+        <div className="text-xs text-[#999]">
           <span className={`ml-1 ${totalChars > 1000 ? 'text-[#FF2442]' : ''}`}>
             {totalChars}/1000
           </span>

@@ -129,7 +129,6 @@ function App() {
         {store.stage === 'editor' && (
           <div key="editor" className="flex-1 min-h-0 flex flex-col page-enter-active bg-white mx-auto w-full max-w-[1200px] my-0 rounded-none shadow-none">
             <EditorHeader
-              onBack={() => {}}
               showToolbar={false}
               editor={null}
               rightActions={
