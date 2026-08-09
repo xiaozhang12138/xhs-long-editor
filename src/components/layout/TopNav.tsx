@@ -1,33 +1,24 @@
 import React from 'react';
 
-/**
- * Top navigation bar with XHS logo and user info.
- * Used across all 3 stages.
- */
+/** Product navigation used across all three stages. */
 export const TopNav: React.FC = () => {
   return (
     <nav className="h-14 bg-white border-b border-[#E8E8E8] flex items-center justify-between px-6 fixed top-0 left-0 right-0 z-50">
-      {/* Left: Logo */}
-      <div className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-full bg-[#FF2442] flex items-center justify-center">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-              fill="white"
-              transform="scale(0.8) translate(3,3)"
-            />
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className="w-8 h-8 rounded-lg bg-[#2563EB] flex items-center justify-center shadow-sm shadow-blue-200/70 shrink-0">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="4" y="3" width="11" height="14" rx="2" stroke="white" strokeWidth="1.7" />
+            <rect x="9" y="7" width="11" height="14" rx="2" fill="#2563EB" stroke="white" strokeWidth="1.7" />
+            <path d="M12 11h5M12 14h5M12 17h3" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
         </div>
-        <span className="text-base font-semibold text-[#333]">小红书</span>
-        <span className="text-sm text-[#999] ml-1">创作服务平台</span>
+        <span className="text-base font-semibold tracking-tight text-[#242424] truncate">长文自由拆分图片</span>
+        <span className="hidden sm:inline text-xs text-[#999] ml-1">长文排版与图片导出</span>
       </div>
 
-      {/* 个人自用工具没有账号系统，用户信息仅作身份标识。 */}
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium overflow-hidden">
-          健
-        </div>
-        <span className="text-sm text-[#333]">健康的蛤蟆</span>
+      <div className="flex items-center gap-2 text-xs text-[#777] shrink-0" title="数据仅保存在当前浏览器">
+        <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.12)]" />
+        <span className="hidden sm:inline">本地自动保存</span>
       </div>
     </nav>
   );

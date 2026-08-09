@@ -49,12 +49,9 @@ function App() {
     showToast('草稿已保存到当前浏览器');
   }, [showToast]);
 
-  /**
-   * 本工具没有接入小红书发布接口，不能伪装成已经发布，也不能删除草稿。
-   * 完成页只提示用户下载图片后手动发布。
-   */
+  /** The tool exports images locally and does not publish to external platforms. */
   const handlePublish = useCallback(() => {
-    showToast('内容已保存，请下载图片后手动发布到小红书');
+    showToast('内容已保存，请下载图片后按需使用');
   }, [showToast]);
 
   /** Copy the whole article (title + body plain text) to the clipboard. */

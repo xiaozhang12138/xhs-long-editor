@@ -15,7 +15,7 @@ const AVAIL_W = 232;
  * iPhone mockup mobile preview component.
  * CSS-drawn phone frame with notch, home indicator.
  *
- * - 笔记预览: swipeable list of the auto-generated pages (cover + content),
+ * - 正文预览: swipeable list of the auto-generated pages (cover + content),
  *   matching the pagination engine exactly.
  * - 封面预览: the generated cover page.
  */
@@ -77,7 +77,7 @@ export const MobilePreview: React.FC<MobilePreviewProps> = ({ article }) => {
           }`}
           onClick={() => setActiveTab('note')}
         >
-          笔记预览
+          正文预览
         </button>
         <button
           type="button"
@@ -112,26 +112,12 @@ export const MobilePreview: React.FC<MobilePreviewProps> = ({ article }) => {
             </div>
           </div>
 
-          {/* App header */}
-          <div className="px-3 py-2 flex items-center gap-2 border-b border-[#F0F0F0]">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="#666">
-              <path d="M8 3L5 7l3 4" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-[10px] font-bold overflow-hidden">
-              健
-            </div>
-            <span className="text-[11px] text-[#333] font-medium">健康的蛤蟆</span>
-            <button
-              type="button"
-              className="ml-auto px-2 py-0.5 text-[10px] rounded-full cursor-pointer border border-[#FF2442] text-[#FF2442] bg-transparent hover:bg-[#FFF0F2] transition-colors"
-            >
-              关注
-            </button>
-            <button type="button" className="cursor-pointer border-none bg-transparent p-0.5">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="#999">
-                <circle cx="7" cy="3" r="1.2" /><circle cx="7" cy="7" r="1.2" /><circle cx="7" cy="11" r="1.2" />
-              </svg>
-            </button>
+          {/* Neutral preview header */}
+          <div className="px-3 py-2 flex items-center justify-between border-b border-[#F0F0F0]">
+            <span className="text-[11px] text-[#333] font-medium">导出效果预览</span>
+            <span className="text-[10px] text-[#999] tabular-nums">
+              {ready ? `${pages.length} 张图片` : '排版中'}
+            </span>
           </div>
 
           {/* Content area (scrollable) */}
