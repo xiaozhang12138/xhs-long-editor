@@ -11,6 +11,7 @@ import {
   copyTextToClipboard,
   formatArticlePlainText,
 } from './utils/clipboard';
+import { ensureDocumentFlowIds } from './utils/mergeBack';
 
 /** Toast notification */
 const Toast: React.FC<{ message: string; onClose: () => void }> = ({ message, onClose }) => {
@@ -67,8 +68,12 @@ function App() {
 
   /** Navigate to format page */
   const goToFormat = useCallback(() => {
+    const normalized = ensureDocumentFlowIds(store.article.content);
+    if (normalized && normalized.json !== store.article.content) {
+      store.updateContent(normalized.json, normalized.html);
+    }
     store.goToStage('format');
-  }, [store]);
+  }, [store.article.content, store.goToStage, store.updateContent]);
 
   /** Navigate to publish page */
   const goToPublish = useCallback(() => {

@@ -10,8 +10,14 @@ import { templates } from '../../data/templates';
 import { useArticlePages } from '../../hooks/useArticlePages';
 import { ArticlePage } from './ArticlePage';
 import { CardEditorToolbar } from './CardEditorToolbar';
-import { applyBlockEdits, insertImageAfterBlock, moveBlockNear } from '../../utils/mergeBack';
-import type { BlockEdit } from '../../utils/mergeBack';
+import {
+  applyCardFlowEdits,
+  createFlowId,
+  insertImageAfterBlock,
+  moveBlockNear,
+} from '../../utils/mergeBack';
+import type { CardFlowEdit } from '../../utils/mergeBack';
+import { blockText } from '../../utils/htmlDoc';
 import { normalizeCardEditHtml } from '../../utils/typography';
 import {
   downloadAllAsZip,
@@ -41,6 +47,175 @@ const PAD = 34;
 /** Wrapper vertical padding (top 26px + bottom 30px from global.css). */
 const WRAP_V_PAD = 26 + 30;
 const EDIT_DEBOUNCE_MS = 500;
+
+interface CaretBookmark {
+  /** Stable source block id, without a pagination part suffix. */
+  id: string;
+  /** Character offset inside the complete source block. */
+  offset: number;
+}
+
+interface PendingCaretRestore {
+  bookmark: CaretBookmark;
+  expectedJson: string;
+  sawPaginationStart: boolean;
+  previousPages: ReturnType<typeof useArticlePages>['pages'];
+}
+
+/** Collect existing and newly-created card blocks in visual DOM order. */
+function collectCardFlowEntries(root: HTMLElement): CardFlowEdit[] {
+  const entries: CardFlowEdit[] = [];
+  const seen = new Set<string>();
+  let previousId: string | undefined;
+
+  const add = (element: HTMLElement): void => {
+    const rawId = element.dataset.blockId;
+    if (rawId && !seen.has(rawId)) {
+      seen.add(rawId);
+      entries.push({
+        id: rawId,
+        html: normalizeCardEditHtml(element),
+        outerHtml: element.outerHTML,
+      });
+      previousId = rawId;
+      return;
+    }
+
+    const newId = element.dataset.flowNewId || createFlowId();
+    element.dataset.flowNewId = newId;
+    entries.push({
+      html: normalizeCardEditHtml(element),
+      outerHtml: element.outerHTML,
+      newId,
+      afterId: previousId,
+    });
+    previousId = newId;
+  };
+
+  Array.from(root.children).forEach((child) => {
+    const element = child as HTMLElement;
+    if (element.matches('ul,ol')) {
+      Array.from(element.children)
+        .filter((item) => item.tagName.toLowerCase() === 'li')
+        .forEach((item) => add(item as HTMLElement));
+      return;
+    }
+    if (element.dataset.blockId) {
+      add(element);
+      return;
+    }
+    const tagged = Array.from(
+      element.querySelectorAll<HTMLElement>('[data-block-id]')
+    );
+    if (tagged.length) tagged.forEach(add);
+    else add(element);
+  });
+
+  let nextExistingId: string | undefined;
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry.id) nextExistingId = entry.id;
+    else if (!entry.afterId) entry.beforeId = nextExistingId;
+  }
+  return entries;
+}
+
+/** Character offset from the beginning of a rendered block to the caret. */
+function caretOffsetWithin(element: HTMLElement): number {
+  const selection = window.getSelection();
+  if (!selection?.anchorNode || !element.contains(selection.anchorNode)) {
+    return element.innerText.length;
+  }
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.setEnd(selection.anchorNode, selection.anchorOffset);
+    return range.toString().length;
+  } catch {
+    return element.innerText.length;
+  }
+}
+
+/** Capture a logical source position before cards are regenerated. */
+function captureCaretBookmark(
+  root: HTMLElement,
+  pages: ReturnType<typeof useArticlePages>['pages']
+): CaretBookmark | null {
+  const selectionNode = window.getSelection()?.anchorNode;
+  const selectionElement = selectionNode?.nodeType === Node.ELEMENT_NODE
+    ? selectionNode as Element
+    : selectionNode?.parentElement;
+  const element = selectionElement?.closest(
+    '[data-block-id], [data-flow-new-id]'
+  ) as HTMLElement | null;
+  if (!element || !root.contains(element)) return null;
+
+  const newId = element.dataset.flowNewId;
+  if (newId) return { id: newId, offset: caretOffsetWithin(element) };
+  const partId = element.dataset.blockId;
+  if (!partId) return null;
+  const baseId = partId.replace(/-p\d+$/, '');
+  let offset = caretOffsetWithin(element);
+  for (const page of pages) {
+    for (const block of page.blocks) {
+      if (block.id === partId) return { id: baseId, offset };
+      if (block.id.replace(/-p\d+$/, '') === baseId) {
+        offset += blockText(block).length;
+      }
+    }
+  }
+  return { id: baseId, offset };
+}
+
+/** Find the regenerated page part that owns a logical source offset. */
+function locateBookmark(
+  pages: ReturnType<typeof useArticlePages>['pages'],
+  bookmark: CaretBookmark
+): { pageIndex: number; partId: string; localOffset: number } | null {
+  let consumed = 0;
+  let last: { pageIndex: number; partId: string; localOffset: number } | null = null;
+  for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
+    for (const block of pages[pageIndex].blocks) {
+      if (block.id.replace(/-p\d+$/, '') !== bookmark.id) continue;
+      const length = blockText(block).length;
+      last = {
+        pageIndex,
+        partId: block.id,
+        localOffset: Math.max(0, Math.min(length, bookmark.offset - consumed)),
+      };
+      if (bookmark.offset <= consumed + length) return last;
+      consumed += length;
+    }
+  }
+  return last;
+}
+
+/** Restore the caret inside a regenerated rich-text block. */
+function placeCaret(element: HTMLElement, offset: number): void {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  let remaining = Math.max(0, offset);
+  let node = walker.nextNode();
+  while (node) {
+    const length = node.textContent?.length ?? 0;
+    if (remaining <= length) {
+      const range = document.createRange();
+      range.setStart(node, remaining);
+      range.collapse(true);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      return;
+    }
+    remaining -= length;
+    node = walker.nextNode();
+  }
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.collapse(false);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
 
 /**
  * Memoized ArticlePage: while the active card is being edited it must never
@@ -84,6 +259,7 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
   const viewportRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const editTimerRef = useRef<number | null>(null);
+  const pendingCaretRestoreRef = useRef<PendingCaretRestore | null>(null);
 
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
   const [scrollIndex, setScrollIndex] = useState(0);
@@ -157,30 +333,86 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
     [pages.length, slotStep]
   );
 
+  // A structured card transaction briefly returns the active page to render
+  // mode, re-paginates the complete document, then reopens the page part that
+  // now owns the saved logical caret position.
+  useEffect(() => {
+    const pending = pendingCaretRestoreRef.current;
+    if (!pending || article.content !== pending.expectedJson) return;
+    if (!ready) {
+      pending.sawPaginationStart = true;
+      return;
+    }
+    if (!pending.sawPaginationStart && pages === pending.previousPages) return;
+
+    const location = locateBookmark(pages, pending.bookmark);
+    pendingCaretRestoreRef.current = null;
+    if (!location) return;
+    const card = cardRefs.current[location.pageIndex];
+    const content = card?.querySelector('.xhs-card-content') as HTMLElement | null;
+    if (!content) return;
+
+    setActiveHtml(content.innerHTML);
+    setActiveTitleHtml('');
+    setActiveIndex(location.pageIndex);
+    setActiveBlockId(location.partId);
+    scrollToCard(location.pageIndex);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const freshCard = cardRefs.current[location.pageIndex];
+        const freshContent = freshCard?.querySelector(
+          '.xhs-card-content'
+        ) as HTMLElement | null;
+        const part = freshContent
+          ? Array.from(freshContent.querySelectorAll<HTMLElement>('[data-block-id]'))
+              .find((element) => element.dataset.blockId === location.partId)
+          : undefined;
+        if (!freshContent || !part) return;
+        freshContent.focus();
+        placeCaret(part, location.localOffset);
+      });
+    });
+  }, [article.content, pages, ready, scrollToCard]);
+
   /* ── click-to-edit: commit / activate / deactivate ──────────────── */
 
   const commitEdits = useCallback(
-    (targetIndex: number) => {
+    (targetIndex: number, restoreCaret = false) => {
       const cardEl = cardRefs.current[targetIndex];
       if (!cardEl) return;
       const contentEl = cardEl.querySelector(
         '.xhs-card-content'
       ) as HTMLElement | null;
       if (!contentEl) return;
-      const edits: BlockEdit[] = [];
-      contentEl.querySelectorAll('[data-block-id]').forEach((el) => {
-        edits.push({
-          id: el.getAttribute('data-block-id') || '',
-          html: normalizeCardEditHtml(el),
-        });
-      });
-      if (!edits.length) return;
-      const result = applyBlockEdits(article.content, pages, edits);
-      if (result) {
-        onContentChange(result.json, result.html);
+      const entries = collectCardFlowEntries(contentEl);
+      if (!entries.length) return;
+      const captured = restoreCaret
+        ? captureCaretBookmark(contentEl, pages)
+        : null;
+      const bookmark = captured ?? (
+        restoreCaret && activeBlockId
+          ? { id: activeBlockId.replace(/-p\d+$/, ''), offset: 0 }
+          : null
+      );
+      const result = applyCardFlowEdits(article.content, pages, entries);
+      if (!result || result.json === article.content) return;
+      if (bookmark) {
+        pendingCaretRestoreRef.current = {
+          bookmark,
+          expectedJson: result.json,
+          sawPaginationStart: false,
+          previousPages: pages,
+        };
+      }
+      onContentChange(result.json, result.html);
+      if (restoreCaret && bookmark) {
+        setActiveIndex(null);
+        setActiveHtml('');
+        setActiveBlockId(null);
       }
     },
-    [article.content, pages, onContentChange]
+    [activeBlockId, article.content, pages, onContentChange]
   );
 
   const flushPendingEdit = useCallback(() => {
@@ -188,7 +420,7 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
       window.clearTimeout(editTimerRef.current);
       editTimerRef.current = null;
       if (activeIndexRef.current !== null) {
-        commitEdits(activeIndexRef.current);
+        commitEdits(activeIndexRef.current, false);
       }
     }
   }, [commitEdits]);
@@ -198,7 +430,7 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
     editTimerRef.current = window.setTimeout(() => {
       editTimerRef.current = null;
       if (activeIndexRef.current !== null) {
-        commitEdits(activeIndexRef.current);
+        commitEdits(activeIndexRef.current, true);
       }
     }, EDIT_DEBOUNCE_MS);
   }, [commitEdits]);
@@ -313,7 +545,7 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
   const handleImageResizeCommit = useCallback(() => {
     // Commit immediately so the new width persists in the store.
     if (activeIndexRef.current !== null) {
-      commitEdits(activeIndexRef.current);
+      commitEdits(activeIndexRef.current, true);
     }
   }, [commitEdits]);
 
@@ -404,16 +636,12 @@ export const PageCardStream: React.FC<PageCardStreamProps> = ({
       const targetIndex = activeIndexRef.current;
       if (targetIndex !== null) {
         const card = cardRefs.current[targetIndex];
-        const content = card?.querySelector('.xhs-card-content');
+        const content = card?.querySelector(
+          '.xhs-card-content'
+        ) as HTMLElement | null;
         if (content) {
-          const edits: BlockEdit[] = [];
-          content.querySelectorAll('[data-block-id]').forEach((el) => {
-            edits.push({
-              id: el.getAttribute('data-block-id') || '',
-              html: normalizeCardEditHtml(el),
-            });
-          });
-          sourceJson = applyBlockEdits(sourceJson, pages, edits)?.json ?? sourceJson;
+          const entries = collectCardFlowEntries(content);
+          sourceJson = applyCardFlowEdits(sourceJson, pages, entries)?.json ?? sourceJson;
         }
       }
 

@@ -2,10 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { parseHtmlToDoc, parseInlineHtml, docToHtml } from '../src/utils/htmlDoc';
 import {
   applyBlockEdits,
+  applyCardFlowEdits,
   buildBlockRegistry,
+  ensureDocumentFlowIds,
   insertImageAfterBlock,
   moveBlockNear,
 } from '../src/utils/mergeBack';
+import { parseContentToBlocks } from '../src/utils/blockParser';
 import type { PageResult } from '../src/utils/pagination';
 
 /** Minimal TipTap doc with a paragraph + a heading. */
@@ -92,6 +95,18 @@ describe('buildBlockRegistry 与 blockParser 顺序一致', () => {
     expect(registry.get('b0')).toMatchObject({ kind: 'paragraph' });
     expect(registry.get('b1')).toMatchObject({ kind: 'heading', level: 1 });
     expect(registry.get('b2')).toMatchObject({ kind: 'paragraph' });
+  });
+
+  it('旧文档首次排版时获得稳定 flowId', () => {
+    const normalized = ensureDocumentFlowIds(DOC);
+    expect(normalized).not.toBeNull();
+    const doc = JSON.parse(normalized!.json) as {
+      content: Array<{ attrs?: { flowId?: string } }>;
+    };
+    expect(doc.content.map((node) => node.attrs?.flowId)).toEqual(['b0', 'b1', 'b2']);
+    expect(parseContentToBlocks(normalized!.json).map((block) => block.id)).toEqual([
+      'b0', 'b1', 'b2',
+    ]);
   });
 });
 
@@ -184,6 +199,75 @@ describe('applyBlockEdits 点击即改回写', () => {
   });
 });
 
+describe('applyCardFlowEdits 结构化连续回流', () => {
+  it('回车生成的新段落插入源文档，后续块稳定 ID 不变', () => {
+    const normalized = ensureDocumentFlowIds(DOC)!;
+    const pages: PageResult[] = [
+      {
+        pageIndex: 1,
+        blocks: [
+          { id: 'b0', type: 'text', nodes: [{ text: '第一段内容' }] },
+          { id: 'b1', type: 'heading', level: 1, nodes: [{ text: '小标题' }] },
+          { id: 'b2', type: 'text', nodes: [{ text: '第三段' }] },
+        ],
+      },
+    ];
+    const result = applyCardFlowEdits(normalized.json, pages, [
+      {
+        id: 'b0',
+        html: '第一段内容',
+        outerHtml: '<p data-block-id="b0">第一段内容</p>',
+      },
+      {
+        html: '新增段落',
+        outerHtml: '<p>新增段落</p>',
+        newId: 'n-new-paragraph',
+        afterId: 'b0',
+        beforeId: 'b1',
+      },
+      {
+        id: 'b1',
+        html: '小标题',
+        outerHtml: '<h1 data-block-id="b1">小标题</h1>',
+      },
+      {
+        id: 'b2',
+        html: '第三段',
+        outerHtml: '<p data-block-id="b2">第三段</p>',
+      },
+    ]);
+
+    expect(result).not.toBeNull();
+    const blocks = parseContentToBlocks(result!.json);
+    expect(blocks.map((block) => block.id)).toEqual([
+      'b0', 'n-new-paragraph', 'b1', 'b2',
+    ]);
+    expect(blocks.map((block) =>
+      'nodes' in block ? block.nodes.map((node) => node.text).join('') : ''
+    )).toEqual(['第一段内容', '新增段落', '小标题', '第三段']);
+  });
+
+  it('拆分段落之后的新段落仍插入原始段落之后', () => {
+    const normalized = ensureDocumentFlowIds(DOC)!;
+    const pages: PageResult[] = [
+      { pageIndex: 1, blocks: [{ id: 'b0-p0', type: 'text', nodes: [{ text: '第一段' }] }] },
+      { pageIndex: 2, blocks: [{ id: 'b0-p1', type: 'text', nodes: [{ text: '内容' }] }] },
+    ];
+    const result = applyCardFlowEdits(normalized.json, pages, [
+      {
+        id: 'b0-p1', html: '内容', outerHtml: '<p data-block-id="b0-p1">内容</p>',
+      },
+      {
+        html: '跨页后新段', outerHtml: '<p>跨页后新段</p>',
+        newId: 'n-after-split', afterId: 'b0-p1',
+      },
+    ]);
+    expect(parseContentToBlocks(result!.json).map((block) => block.id)).toEqual([
+      'b0', 'n-after-split', 'b1', 'b2',
+    ]);
+  });
+});
+
 describe('insertImageAfterBlock 排版后插图', () => {
   it('在光标所在块之后插入真实图片节点', () => {
     const result = insertImageAfterBlock(
@@ -209,6 +293,20 @@ describe('insertImageAfterBlock 排版后插图', () => {
     const result = insertImageAfterBlock(DOC, 'b0-p2', 'data:image/png;base64,SPLIT');
     const doc = JSON.parse(result!.json) as { content: Array<{ type: string }> };
     expect(doc.content[1].type).toBe('image');
+  });
+
+  it('排版后插图获得新稳定 ID，后续段落 ID 不偏移', () => {
+    const normalized = ensureDocumentFlowIds(DOC)!;
+    const result = insertImageAfterBlock(
+      normalized.json,
+      'b0',
+      'data:image/png;base64,FLOW'
+    )!;
+    const ids = parseContentToBlocks(result.json).map((block) => block.id);
+    expect(ids[0]).toBe('b0');
+    expect(ids[1]).toMatch(/^n-/);
+    expect(ids.slice(2)).toEqual(['b1', 'b2']);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it('空文档直接追加图片', () => {

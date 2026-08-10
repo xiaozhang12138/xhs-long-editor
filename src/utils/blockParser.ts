@@ -94,17 +94,22 @@ function textNodesFrom(node: { content?: unknown[] }): RichTextNode[] {
  * ────────────────────────────────────────────────────────────────────── */
 
 let idCounter = 0;
-const nextId = (): string => `b${idCounter++}`;
+const nextId = (attrs?: Record<string, unknown>): string => {
+  const fallback = `b${idCounter++}`;
+  return typeof attrs?.flowId === 'string' && attrs.flowId
+    ? attrs.flowId
+    : fallback;
+};
 
 /**
  * Parse the TipTap JSON document string into a flat list of page blocks.
  * Unknown/nested containers are flattened by recursion; list items become
  * individual blocks so pagination can break between items.
  *
- * Block ids are deterministic (b0, b1, … in document order) — the counter is
- * reset per call so the same document always yields the same ids. This is what
- * makes the click-to-edit merge-back (utils/mergeBack.ts) able to map a card's
- * DOM blocks back to their source JSON nodes.
+ * Legacy documents fall back to deterministic b0/b1 ids. Once formatting is
+ * entered, those ids are persisted as attrs.flowId; blocks created later keep
+ * their own stable id even when earlier content is inserted or removed. This
+ * lets card edits and caret bookmarks survive whole-document re-pagination.
  */
 export function parseContentToBlocks(contentJson: string): PageBlock[] {
   if (!contentJson) return [];
@@ -127,7 +132,7 @@ export function parseContentToBlocks(contentJson: string): PageBlock[] {
     switch (node.type) {
       case 'paragraph':
         blocks.push({
-          id: nextId(),
+          id: nextId(node.attrs),
           type: 'text',
           nodes: textNodesFrom(node),
           fontSize: effectiveFontSize(node),
@@ -137,7 +142,7 @@ export function parseContentToBlocks(contentJson: string): PageBlock[] {
         const level =
           (node.attrs?.level as number) === 1 ? 1 : 2;
         blocks.push({
-          id: nextId(),
+          id: nextId(node.attrs),
           type: 'heading',
           level,
           nodes: textNodesFrom(node),
@@ -155,7 +160,7 @@ export function parseContentToBlocks(contentJson: string): PageBlock[] {
             itemNodes.push(...textNodesFrom(p as { content?: unknown[] }));
           }
           blocks.push({
-            id: nextId(),
+            id: nextId((li as { attrs?: Record<string, unknown> }).attrs),
             type: 'list',
             listKind,
             index: idx + 1,
@@ -167,7 +172,7 @@ export function parseContentToBlocks(contentJson: string): PageBlock[] {
       }
       case 'blockquote':
         blocks.push({
-          id: nextId(),
+          id: nextId(node.attrs),
           type: 'quote',
           nodes: textNodesFrom(node),
           fontSize: effectiveFontSize(node),
@@ -175,7 +180,7 @@ export function parseContentToBlocks(contentJson: string): PageBlock[] {
         break;
       case 'image':
         blocks.push({
-          id: nextId(),
+          id: nextId(node.attrs),
           type: 'image',
           src: (node.attrs?.src as string) ?? '',
           alt: (node.attrs?.alt as string) ?? '',
@@ -187,7 +192,7 @@ export function parseContentToBlocks(contentJson: string): PageBlock[] {
         });
         break;
       case 'horizontalRule':
-        blocks.push({ id: nextId(), type: 'divider' });
+        blocks.push({ id: nextId(node.attrs), type: 'divider' });
         break;
       default:
         // Recurse into unknown containers (e.g. nested lists, code blocks

@@ -10,6 +10,7 @@ import type { EditorView } from '@tiptap/pm/view';
 import type { Slice } from '@tiptap/pm/model';
 import { FontSize } from './extensions/FontSize';
 import { ResizableImage } from './extensions/ResizableImage';
+import { FlowId } from './extensions/FlowId';
 
 interface RichTextEditorProps {
   content: string;
@@ -56,6 +57,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           levels: [1, 2],
         },
       }),
+      FlowId,
       Underline,
       TextStyle,
       Color,

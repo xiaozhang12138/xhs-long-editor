@@ -10,6 +10,7 @@ import type { EditorView } from '@tiptap/pm/view';
 import type { Slice } from '@tiptap/pm/model';
 import { FontSize } from './extensions/FontSize';
 import { ResizableImage } from './extensions/ResizableImage';
+import { FlowId } from './extensions/FlowId';
 import { TitleInput } from './TitleInput';
 import { Toolbar } from './Toolbar';
 
@@ -78,6 +79,7 @@ export const LongArticleEditor: React.FC<LongArticleEditorProps> = ({
       StarterKit.configure({
         heading: { levels: [1, 2] },
       }),
+      FlowId,
       Underline,
       TextStyle,
       Color,

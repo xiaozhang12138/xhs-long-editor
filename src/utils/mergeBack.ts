@@ -33,6 +33,21 @@ export interface MergeBackResult {
   html: string;
 }
 
+/** A visual block collected from one editable card, in DOM order. */
+export interface CardFlowEdit {
+  /** Existing stable block id. Omitted for a newly-created DOM block. */
+  id?: string;
+  /** Existing block inner HTML. */
+  html: string;
+  /** Full element HTML used to parse a new block. */
+  outerHtml: string;
+  /** Stable id already reserved for a new block by the card editor. */
+  newId?: string;
+  /** Neighbour ids keep new blocks at their exact document position. */
+  afterId?: string;
+  beforeId?: string;
+}
+
 /** Where a block lives inside the source TipTap doc. */
 interface BlockSourceRef {
   path: number[];
@@ -48,34 +63,45 @@ export function buildBlockRegistry(doc: TipTapDoc): Map<string, BlockSourceRef> 
   const map = new Map<string, BlockSourceRef>();
   let id = 0;
 
+  const register = (
+    node: TipTapNode,
+    ref: BlockSourceRef
+  ): void => {
+    const fallback = `b${id++}`;
+    const stable = typeof node.attrs?.flowId === 'string' && node.attrs.flowId
+      ? node.attrs.flowId
+      : fallback;
+    map.set(stable, ref);
+  };
+
   const walk = (node: TipTapNode, path: number[]): void => {
     switch (node.type) {
       case 'paragraph':
-        map.set(`b${id++}`, { path, kind: 'paragraph' });
+        register(node, { path, kind: 'paragraph' });
         break;
       case 'heading':
-        map.set(`b${id++}`, {
+        register(node, {
           path,
           kind: 'heading',
           level: (node.attrs?.level as 1 | 2) ?? 2,
         });
         break;
       case 'blockquote':
-        map.set(`b${id++}`, { path, kind: 'blockquote' });
+        register(node, { path, kind: 'blockquote' });
         break;
       case 'bulletList':
       case 'orderedList': {
         // Each list item is its own block (matches blockParser).
         (node.content ?? []).forEach((li, liIdx) => {
-          map.set(`b${id++}`, { path: [...path, liIdx], kind: 'listItem' });
+          register(li, { path: [...path, liIdx], kind: 'listItem' });
         });
         break;
       }
       case 'image':
-        map.set(`b${id++}`, { path, kind: 'image' });
+        register(node, { path, kind: 'image' });
         break;
       case 'horizontalRule':
-        map.set(`b${id++}`, { path, kind: 'divider' });
+        register(node, { path, kind: 'divider' });
         break;
       default:
         (node.content ?? []).forEach((c, i) => walk(c, [...path, i]));
@@ -84,6 +110,62 @@ export function buildBlockRegistry(doc: TipTapDoc): Map<string, BlockSourceRef> 
 
   (doc.content ?? []).forEach((c, i) => walk(c, [i]));
   return map;
+}
+
+let flowSequence = 0;
+
+/** Create a collision-resistant id for a block born in the card editor. */
+export function createFlowId(): string {
+  const random = globalThis.crypto?.randomUUID?.();
+  if (random) return `n-${random}`;
+  flowSequence += 1;
+  return `n-${Date.now().toString(36)}-${flowSequence.toString(36)}`;
+}
+
+/**
+ * Add stable ids to legacy documents without changing their visible content.
+ * Existing b0/b1 ids are retained on first migration, so manual page breaks
+ * and old draft behaviour remain compatible.
+ */
+export function ensureDocumentFlowIds(contentJson: string): MergeBackResult | null {
+  if (!contentJson) return null;
+  let doc: TipTapDoc;
+  try {
+    doc = JSON.parse(contentJson) as TipTapDoc;
+  } catch {
+    return null;
+  }
+  if (!doc || doc.type !== 'doc' || !Array.isArray(doc.content)) return null;
+
+  let counter = 0;
+  let changed = false;
+  const assign = (node: TipTapNode): void => {
+    const fallback = `b${counter++}`;
+    if (!node.attrs?.flowId) {
+      node.attrs = { ...(node.attrs ?? {}), flowId: fallback };
+      changed = true;
+    }
+  };
+  const walk = (node: TipTapNode): void => {
+    switch (node.type) {
+      case 'paragraph':
+      case 'heading':
+      case 'blockquote':
+      case 'image':
+      case 'horizontalRule':
+        assign(node);
+        break;
+      case 'bulletList':
+      case 'orderedList':
+        (node.content ?? []).forEach(assign);
+        break;
+      default:
+        (node.content ?? []).forEach(walk);
+    }
+  };
+  doc.content.forEach(walk);
+  if (!changed) return { json: contentJson, html: docToHtml(doc) };
+  return { json: JSON.stringify(doc), html: docToHtml(doc) };
 }
 
 /** Read a node by its content path. */
@@ -211,6 +293,91 @@ export function applyBlockEdits(
   return { json: JSON.stringify(doc), html: docToHtml(doc) };
 }
 
+/** Assign stable ids to every editable block represented by parsed nodes. */
+function assignFlowIdsToNewNodes(nodes: TipTapNode[], firstId?: string): void {
+  let first = true;
+  const assign = (node: TipTapNode): void => {
+    node.attrs = {
+      ...(node.attrs ?? {}),
+      flowId: first && firstId ? firstId : createFlowId(),
+    };
+    first = false;
+  };
+  const walk = (node: TipTapNode): void => {
+    switch (node.type) {
+      case 'paragraph':
+      case 'heading':
+      case 'blockquote':
+      case 'image':
+      case 'horizontalRule':
+        assign(node);
+        break;
+      case 'bulletList':
+      case 'orderedList':
+        (node.content ?? []).forEach(assign);
+        break;
+      default:
+        (node.content ?? []).forEach(walk);
+    }
+  };
+  nodes.forEach(walk);
+}
+
+/**
+ * Merge a complete editable card transaction back into the source document.
+ * Unlike applyBlockEdits, this also understands new DOM blocks created by
+ * Enter, gives them stable ids, and inserts them between their visual
+ * neighbours before the whole article is re-paginated.
+ */
+export function applyCardFlowEdits(
+  contentJson: string,
+  pages: PageResult[],
+  entries: CardFlowEdit[]
+): MergeBackResult | null {
+  if (!contentJson || !entries.length) return null;
+
+  const existing: BlockEdit[] = entries
+    .filter((entry): entry is CardFlowEdit & { id: string } => !!entry.id)
+    .map((entry) => ({ id: entry.id, html: entry.html }));
+  const edited = existing.length
+    ? applyBlockEdits(contentJson, pages, existing)
+    : null;
+
+  let doc: TipTapDoc;
+  try {
+    doc = JSON.parse(edited?.json ?? contentJson) as TipTapDoc;
+  } catch {
+    return null;
+  }
+  if (!doc || doc.type !== 'doc' || !Array.isArray(doc.content)) return null;
+
+  let inserted = false;
+  for (const entry of entries) {
+    if (entry.id) continue;
+    const parsed = parseHtmlToDoc(entry.outerHtml).content;
+    if (!parsed.length) continue;
+    assignFlowIdsToNewNodes(parsed, entry.newId);
+
+    const registry = buildBlockRegistry(doc);
+    const after = entry.afterId
+      ? registry.get(entry.afterId.replace(/-p\d+$/, ''))
+      : undefined;
+    const before = entry.beforeId
+      ? registry.get(entry.beforeId.replace(/-p\d+$/, ''))
+      : undefined;
+    const insertAt = after
+      ? after.path[0] + 1
+      : before
+        ? before.path[0]
+        : doc.content.length;
+    doc.content.splice(Math.max(0, insertAt), 0, ...parsed);
+    inserted = true;
+  }
+
+  if (!edited && !inserted) return null;
+  return { json: JSON.stringify(doc), html: docToHtml(doc) };
+}
+
 /**
  * Insert a clipboard/file image as a real top-level TipTap block.
  *
@@ -235,7 +402,10 @@ export function insertImageAfterBlock(
   if (!doc || doc.type !== 'doc') return null;
   if (!Array.isArray(doc.content)) doc.content = [];
 
-  const image: TipTapNode = { type: 'image', attrs: { src } };
+  const image: TipTapNode = {
+    type: 'image',
+    attrs: { src, flowId: createFlowId() },
+  };
   const baseId = afterBlockId?.replace(/-p\d+$/, '');
   const ref = baseId ? buildBlockRegistry(doc).get(baseId) : undefined;
   const insertAt = ref?.path[0];
