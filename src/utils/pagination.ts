@@ -146,6 +146,13 @@ export interface PaginationOptions {
   height: number;
   /** Card inner padding in px (template.padding). */
   padding: number;
+  /** Optional asymmetric insets reserved for fixed app-like chrome. */
+  contentInsets?: {
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+  };
   /** Base body font size in px (template.baseFontSize). */
   baseFontSize: number;
   /** Line height multiplier (template.lineHeight). */
@@ -290,10 +297,12 @@ export function buildPaginationOptions(
   size: ArticleSize,
   tpl: Template
 ): PaginationOptions {
+  const padding = resolveCardPadding(tpl.padding);
   return {
     width: size.width,
     height: size.height,
-    padding: resolveCardPadding(tpl.padding),
+    padding,
+    contentInsets: tpl.contentInsets,
     baseFontSize: resolveCardBodyFontSize(tpl.baseFontSize),
     lineHeight: tpl.lineHeight,
     letterSpacing: tpl.letterSpacing,
@@ -301,6 +310,20 @@ export function buildPaginationOptions(
     blockMargin: 8,
     headingScale: { 1: 1.6, 2: 1.35 },
     imageMaxWidthRatio: 0.85,
+  };
+}
+
+/** Resolve the usable content box, including templates with asymmetric chrome. */
+function contentBox(opts: PaginationOptions): { width: number; height: number } {
+  const insets = opts.contentInsets ?? {
+    top: opts.padding,
+    right: opts.padding,
+    bottom: opts.padding,
+    left: opts.padding,
+  };
+  return {
+    width: Math.max(1, opts.width - insets.left - insets.right),
+    height: Math.max(1, opts.height - insets.top - insets.bottom),
   };
 }
 
@@ -600,8 +623,7 @@ export function paginateBlocks(
   blocks: PageBlock[],
   opts: PaginationOptions
 ): PageResult[] {
-  const contentWidth = Math.max(1, opts.width - opts.padding * 2);
-  const contentHeight = Math.max(1, opts.height - opts.padding * 2);
+  const { width: contentWidth, height: contentHeight } = contentBox(opts);
   const ctx: BlockLayoutContext = { contentWidth, contentHeight, opts };
 
   const results: PageResult[] = [];
@@ -707,8 +729,7 @@ export function analyzePaginationQuality(
   pages: PageResult[],
   opts: PaginationOptions
 ): PageQualityWarning[][] {
-  const contentWidth = Math.max(1, opts.width - opts.padding * 2);
-  const contentHeight = Math.max(1, opts.height - opts.padding * 2);
+  const { width: contentWidth, height: contentHeight } = contentBox(opts);
   const ctx: BlockLayoutContext = { contentWidth, contentHeight, opts };
   return pages.map((page, pageIndex) => {
     const warnings: PageQualityWarning[] = [];

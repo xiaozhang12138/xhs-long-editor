@@ -9,7 +9,7 @@ interface TemplateSelectorProps {
 
 /**
  * Template selection panel, grouped by category.
- * Renders all 14 templates in a scrollable 2-column grid.
+ * Renders all available templates in a scrollable 2-column grid.
  */
 export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   selectedId,
@@ -80,7 +80,9 @@ const TemplateCard: React.FC<{
     >
       {/* Miniature render of the template */}
       <div
-        className="aspect-[3/4] flex flex-col"
+        className={`template-thumbnail aspect-[3/4] flex flex-col ${
+          t.id === 'apple-notes' ? 'template-thumbnail--apple-notes' : ''
+        } ${t.id === 'weibo-screenshot' ? 'template-thumbnail--weibo' : ''}`}
         style={{
           backgroundColor: t.bgColor,
           padding: 12,
@@ -90,6 +92,16 @@ const TemplateCard: React.FC<{
             t.decorativeStyle === 'corner' ? `2px solid ${t.accentColor}` : undefined,
         }}
       >
+        {t.id === 'apple-notes' && (
+          <div className="template-platform-chrome template-platform-chrome--notes">
+            <span>‹ 备忘录</span><span>完成</span>
+          </div>
+        )}
+        {t.id === 'weibo-screenshot' && (
+          <div className="template-platform-chrome template-platform-chrome--weibo">
+            <i /><span><b>微博正文</b><small>刚刚</small></span>
+          </div>
+        )}
         {/* Fake heading */}
         <div
           style={{

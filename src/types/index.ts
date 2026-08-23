@@ -158,6 +158,13 @@ export interface Template {
   letterSpacing: number;
   /** Inner padding of the card in px */
   padding: number;
+  /** Optional final-pixel content insets for templates with fixed app chrome. */
+  contentInsets?: {
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+  };
   /** Secondary/muted text color */
   mutedColor: string;
   /** How <strong>/<b> is emphasized (原版按模板各异的加粗处理). */

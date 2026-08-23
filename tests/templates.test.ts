@@ -53,13 +53,13 @@ const BACKGROUND_PATTERNS = [
 ];
 
 /**
- * T3 - 模板数据完整性（20 种精选模板）
- * PRD 要求：阶段②「一键排版」提供 20 种模板样式，默认第一个为「轻感明快」，
+ * T3 - 模板数据完整性（22 种精选模板）
+ * PRD 要求：阶段②「一键排版」提供 22 种模板样式，默认第一个为「轻感明快」，
  * 每种模板需具备独立字体栈/配色/背景纹理/加粗处理/标题装饰。
  */
 describe('templates 数据完整性', () => {
-  it('应包含 20 种模板', () => {
-    expect(templates).toHaveLength(20);
+  it('应包含 22 种模板', () => {
+    expect(templates).toHaveLength(22);
   });
 
   it('第一个模板是默认模板「轻感明快」', () => {
@@ -90,7 +90,21 @@ describe('templates 数据完整性', () => {
       '黑白极简',
       '平实叙事',
       '交叉拓扑',
+      '苹果备忘录',
+      '微博截图',
     ]);
+  });
+
+  it('平台拟态模板使用更大的正文基准字号', () => {
+    for (const id of ['apple-notes', 'weibo-screenshot']) {
+      const tpl = templates.find((item) => item.id === id);
+      expect(tpl).toBeDefined();
+      expect(tpl?.category).toBe('平台拟态');
+      expect(tpl?.baseFontSize).toBeGreaterThanOrEqual(18);
+      expect(tpl?.fontSize).toBeGreaterThanOrEqual(18);
+      expect(tpl?.contentInsets?.top).toBeGreaterThan(0);
+      expect(tpl?.contentInsets?.bottom).toBeGreaterThan(0);
+    }
   });
 
   it('包含时尚、科学、瑞士刻板与国际主义四类精选设计', () => {
@@ -185,17 +199,17 @@ describe('templates 数据完整性', () => {
     expect(tpl.boldColor.toLowerCase()).toBe('#dcebff');
   });
 
-  it('20 种模板的加粗处理至少覆盖 5 种不同方式', () => {
+  it('22 种模板的加粗处理至少覆盖 5 种不同方式', () => {
     const distinct = new Set(templates.map((t) => t.boldStyle));
     expect(distinct.size).toBeGreaterThanOrEqual(5);
   });
 
-  it('20 种模板的标题装饰至少覆盖 6 种不同方式', () => {
+  it('22 种模板的标题装饰至少覆盖 6 种不同方式', () => {
     const distinct = new Set(templates.map((t) => t.titleDecoration));
     expect(distinct.size).toBeGreaterThanOrEqual(6);
   });
 
-  it('20 种模板的背景纹理至少覆盖 6 种不同方式', () => {
+  it('22 种模板的背景纹理至少覆盖 6 种不同方式', () => {
     const distinct = new Set(templates.map((t) => t.backgroundPattern));
     expect(distinct.size).toBeGreaterThanOrEqual(6);
   });

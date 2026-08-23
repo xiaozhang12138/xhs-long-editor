@@ -121,6 +121,25 @@ describe('estimatePageCountForText 纯函数页数估算', () => {
  * 放不下剩余空间（162+162 > 184）→ 整段移至第二页。
  */
 describe('paginateBlocks 段级分页', () => {
+  it('平台拟态的非对称界面留白会计入可用正文高度', () => {
+    const article = [textBlock('body', chars(220))];
+    const regular = paginateBlocks(article, {
+      ...SMALL_OPTS,
+      width: 200,
+      height: 400,
+      padding: 8,
+    });
+    const withChrome = paginateBlocks(article, {
+      ...SMALL_OPTS,
+      width: 200,
+      height: 400,
+      padding: 8,
+      contentInsets: { top: 140, right: 8, bottom: 90, left: 8 },
+    });
+
+    expect(withChrome.length).toBeGreaterThan(regular.length);
+  });
+
   it('放不下的段落整段移至下一页', () => {
     const blockA = textBlock('a', chars(55)); // 5 行 = 162px
     const blockB = textBlock('b', chars(55)); // 5 行 = 162px
