@@ -132,7 +132,7 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
     active ? 'active' : 'render-mode-disabled',
   ].join(' ');
 
-  /** Fixed app chrome for the two platform-reference templates. */
+  /** Fixed app chrome for platform-reference templates. */
   const renderPlatformChrome = (): React.ReactNode => {
     if (tpl.id === 'apple-notes') {
       return (
@@ -144,21 +144,6 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
           </div>
           <div className="apple-bottom-toolbar">
             <span>☑︎</span><span>⌁</span><span>◯</span><span className="apple-compose">□</span>
-          </div>
-        </div>
-      );
-    }
-    if (tpl.id === 'weibo-screenshot') {
-      return (
-        <div className="platform-chrome platform-chrome--weibo" aria-hidden="true">
-          <div className="weibo-tabs"><span>▣</span><b>关注</b><span>推荐</span><i /><em>＋</em></div>
-          <div className="weibo-profile">
-            <span className="weibo-avatar">长</span>
-            <span><b>长文笔记</b><small>刚刚　来自 iPhone 客户端</small></span>
-            <i>V</i><em>⌄</em>
-          </div>
-          <div className="weibo-actions">
-            <span>↗　转发</span><span>▢　评论</span><span>♡　赞</span>
           </div>
         </div>
       );
@@ -547,12 +532,12 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
 
   // ── Cover page ──────────────────────────────────────────────────────
   if (page.isCover) {
-    if (tpl.id === 'apple-notes' || tpl.id === 'weibo-screenshot') {
+    if (tpl.id === 'apple-notes') {
       const preview = article.contentHtml
         .replace(/<[^>]+>/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
-        .slice(0, tpl.id === 'apple-notes' ? 150 : 110);
+        .slice(0, 150);
       return (
         <div
           className={rootClassName}
@@ -560,40 +545,19 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({
           onMouseDown={(e) => onCardMouseDown?.(e, page.pageIndex)}
         >
           {renderPlatformChrome()}
-          <div className={`platform-cover platform-cover--${tpl.id}`}>
-            {tpl.id === 'apple-notes' ? (
-              <>
-                <h2
-                  className="xhs-cover-title-editable"
-                  contentEditable={active}
-                  suppressContentEditableWarning
-                  onInput={(e) => onTitleInput?.((e.target as HTMLElement).innerText)}
-                >
-                  {article.title || '未命名备忘录'}
-                </h2>
-                <p className="apple-note-date">今天 09:41</p>
-                <div className="apple-note-tags"><span>#备忘录</span><span>#长文</span></div>
-                <p className="apple-note-preview">{preview || '从这里开始记录你的想法。'}</p>
-                {article.coverImage && <img src={article.coverImage} alt="备忘录附件" />}
-              </>
-            ) : (
-              <>
-                <p className="weibo-topic">#长文阅读#　#值得收藏#</p>
-                <h2
-                  className="xhs-cover-title-editable"
-                  contentEditable={active}
-                  suppressContentEditableWarning
-                  onInput={(e) => onTitleInput?.((e.target as HTMLElement).innerText)}
-                >
-                  {article.title || '分享一篇长文'}
-                </h2>
-                <p className="weibo-post-preview">{preview || '展开这条微博，继续阅读完整内容。'}</p>
-                <div className="weibo-link-card">
-                  {article.coverImage ? <img src={article.coverImage} alt="微博配图" /> : <span>长文</span>}
-                  <div><b>{article.title || '长文内容'}</b><small>来自长文自由拆分图片</small></div>
-                </div>
-              </>
-            )}
+          <div className="platform-cover platform-cover--apple-notes">
+            <h2
+              className="xhs-cover-title-editable"
+              contentEditable={active}
+              suppressContentEditableWarning
+              onInput={(e) => onTitleInput?.((e.target as HTMLElement).innerText)}
+            >
+              {article.title || '未命名备忘录'}
+            </h2>
+            <p className="apple-note-date">今天 09:41</p>
+            <div className="apple-note-tags"><span>#备忘录</span><span>#长文</span></div>
+            <p className="apple-note-preview">{preview || '从这里开始记录你的想法。'}</p>
+            {article.coverImage && <img src={article.coverImage} alt="备忘录附件" />}
           </div>
         </div>
       );

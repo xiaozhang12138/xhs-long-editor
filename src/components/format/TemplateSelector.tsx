@@ -82,7 +82,7 @@ const TemplateCard: React.FC<{
       <div
         className={`template-thumbnail aspect-[3/4] flex flex-col ${
           t.id === 'apple-notes' ? 'template-thumbnail--apple-notes' : ''
-        } ${t.id === 'weibo-screenshot' ? 'template-thumbnail--weibo' : ''}`}
+        }`}
         style={{
           backgroundColor: t.bgColor,
           padding: 12,
@@ -95,11 +95,6 @@ const TemplateCard: React.FC<{
         {t.id === 'apple-notes' && (
           <div className="template-platform-chrome template-platform-chrome--notes">
             <span>‹ 备忘录</span><span>完成</span>
-          </div>
-        )}
-        {t.id === 'weibo-screenshot' && (
-          <div className="template-platform-chrome template-platform-chrome--weibo">
-            <i /><span><b>微博正文</b><small>刚刚</small></span>
           </div>
         )}
         {/* Fake heading */}

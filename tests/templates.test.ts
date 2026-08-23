@@ -58,8 +58,8 @@ const BACKGROUND_PATTERNS = [
  * 每种模板需具备独立字体栈/配色/背景纹理/加粗处理/标题装饰。
  */
 describe('templates 数据完整性', () => {
-  it('应包含 22 种模板', () => {
-    expect(templates).toHaveLength(22);
+  it('应包含 21 种模板', () => {
+    expect(templates).toHaveLength(21);
   });
 
   it('第一个模板是默认模板「轻感明快」', () => {
@@ -67,7 +67,7 @@ describe('templates 数据完整性', () => {
     expect(templates[0].id).toBe('qinggan-mingkuai');
   });
 
-  it('20 个模板名单与产品声明一致', () => {
+  it('21 个模板名单与产品声明一致', () => {
     const names = templates.map((t) => t.name);
     expect(names).toEqual([
       '轻感明快',
@@ -91,20 +91,17 @@ describe('templates 数据完整性', () => {
       '平实叙事',
       '交叉拓扑',
       '苹果备忘录',
-      '微博截图',
     ]);
   });
 
   it('平台拟态模板使用更大的正文基准字号', () => {
-    for (const id of ['apple-notes', 'weibo-screenshot']) {
-      const tpl = templates.find((item) => item.id === id);
-      expect(tpl).toBeDefined();
-      expect(tpl?.category).toBe('平台拟态');
-      expect(tpl?.baseFontSize).toBeGreaterThanOrEqual(18);
-      expect(tpl?.fontSize).toBeGreaterThanOrEqual(18);
-      expect(tpl?.contentInsets?.top).toBeGreaterThan(0);
-      expect(tpl?.contentInsets?.bottom).toBeGreaterThan(0);
-    }
+    const tpl = templates.find((item) => item.id === 'apple-notes');
+    expect(tpl).toBeDefined();
+    expect(tpl?.category).toBe('平台拟态');
+    expect(tpl?.baseFontSize).toBeGreaterThanOrEqual(18);
+    expect(tpl?.fontSize).toBeGreaterThanOrEqual(18);
+    expect(tpl?.contentInsets?.top).toBeGreaterThan(0);
+    expect(tpl?.contentInsets?.bottom).toBeGreaterThan(0);
   });
 
   it('包含时尚、科学、瑞士刻板与国际主义四类精选设计', () => {

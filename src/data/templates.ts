@@ -1,12 +1,12 @@
 /**
  * Template & static data for the XHS long-article editor.
  *
- * ── 22 种模板样式（保留易读模板，并增加平台拟态风格）────────────
+ * ── 21 种模板样式（保留易读模板，并增加平台拟态风格）────────────
  *  1. 轻感明快（默认）   2. 素雅底纹   3. 线条复古   4. 灵感备忘   5. 手帐书写
  *  6. 时尚编辑   7. 简约基础   8. 清晰明朗   9. 科学图示   10. 理性现代
  * 11. 瑞士刻板   12. 逻辑结构   13. 文艺清新   14. 札记集尘   15. 杂志先锋
  * 16. 大图纯享   17. 国际主义   18. 黑白极简   19. 平实叙事   20. 交叉拓扑
- * 21. 苹果备忘录 22. 微博截图
+ * 21. 苹果备忘录
  *
  * 每个模板均带：
  *  - 独立字体栈（Google Fonts 免费近似：Noto Sans SC / Noto Serif SC / LXGW WenKai）
@@ -581,33 +581,6 @@ export const templates: Template[] = [
     titleDecoration: 'none',
     backgroundPattern: 'none',
     coverBgColor: '#FFFFFF',
-  },
-  {
-    id: 'weibo-screenshot',
-    name: '微博截图',
-    category: '平台拟态',
-    description: '参考微博 iPhone 信息流的关注栏、头像认证、蓝色话题与转评赞操作区',
-    themeClass: 'template-weibo-screenshot',
-    fontSize: 18,
-    lineHeight: 1.72,
-    fontFamily: SANS,
-    textColor: '#252525',
-    bgColor: '#FFFFFF',
-    accentColor: '#FF8200',
-    baseFontSize: 18,
-    headingFontWeight: 700,
-    cardRadius: 18,
-    headingAlign: 'left',
-    decorativeStyle: 'none',
-    letterSpacing: 0,
-    padding: 34,
-    contentInsets: { top: 230, right: 52, bottom: 132, left: 52 },
-    mutedColor: '#939393',
-    boldStyle: 'color',
-    boldColor: '#EB7350',
-    titleDecoration: 'none',
-    backgroundPattern: 'none',
-    coverBgColor: '#FFF5EE',
   },
 ];
 
